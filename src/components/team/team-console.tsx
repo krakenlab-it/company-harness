@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   GitBranch,
   Loader2,
   Mail,
   Save,
+  Shield,
+  Sparkles,
   UserCog,
   UserPlus,
   Users,
+  Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,12 +22,22 @@ import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AccessMatrix } from "@/components/team/access-matrix";
 import { cn } from "@/lib/utils";
+import type { InviteMode, MemberViewSettings, RepoAction } from "@/lib/types";
+import {
+  INVITE_MODE_PRESETS,
+  INVITE_MODES,
+  NAV_VIEW_KEYS,
+  NAV_VIEW_LABELS,
+  listEnabledNavLabels,
+  resolveInviteConfig,
+} from "@/lib/team/invite-modes";
 
 interface TeamMember {
   id: string;
   name: string;
   email?: string;
   role?: string;
+  inviteMode?: InviteMode;
 }
 
 interface RepoAccess {
@@ -42,20 +55,44 @@ interface Budget {
 }
 
 const ALL_ACTIONS = ["read", "write", "deploy", "admin"] as const;
+const REPO_ACTION_OPTIONS: RepoAction[] = [
+  "read",
+  "write",
+  "agents",
+  "deploy",
+  "secrets",
+];
+
+const MODE_ICONS: Record<InviteMode, typeof Shield> = {
+  admin: Shield,
+  dev: Wrench,
+  marketing: Sparkles,
+  custom: UserCog,
+};
 
 interface ProjectOption {
   id: string;
   name: string;
 }
 
-const ROLES = ["admin", "lead", "dev", "marketing", "viewer"] as const;
+const CUSTOM_ROLES = ["admin", "lead", "dev", "marketing", "viewer"] as const;
+
+const defaultCustomView: MemberViewSettings = {
+  ...INVITE_MODE_PRESETS.dev.viewSettings,
+};
 
 export function TeamConsole() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
-  const [inviteRole, setInviteRole] = useState<string>("dev");
+  const [inviteMode, setInviteMode] = useState<InviteMode>("dev");
+  const [customRole, setCustomRole] = useState<string>("dev");
+  const [customView, setCustomView] =
+    useState<MemberViewSettings>(defaultCustomView);
+  const [customRepoActions, setCustomRepoActions] = useState<RepoAction[]>([
+    "read",
+  ]);
   const [inviteProjectIds, setInviteProjectIds] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState<string | null>(null);
@@ -70,6 +107,15 @@ export function TeamConsole() {
   const [repoActions, setRepoActions] = useState<
     Record<string, string[]>
   >({});
+
+  const invitePreview = useMemo(() => {
+    return resolveInviteConfig({
+      mode: inviteMode,
+      role: inviteMode === "custom" ? (customRole as typeof CUSTOM_ROLES[number]) : undefined,
+      viewSettings: inviteMode === "custom" ? customView : undefined,
+      repoActions: inviteMode === "custom" ? customRepoActions : undefined,
+    });
+  }, [inviteMode, customRole, customView, customRepoActions]);
 
   async function loadTeam() {
     setLoading(true);
@@ -122,26 +168,58 @@ export function TeamConsole() {
     loadTeam();
   }, []);
 
+  function selectMode(mode: InviteMode) {
+    setInviteMode(mode);
+    if (mode !== "custom") {
+      const preset = INVITE_MODE_PRESETS[mode as Exclude<InviteMode, "custom">];
+      if (preset) {
+        setCustomRepoActions([...preset.defaultRepoActions]);
+      }
+    }
+  }
+
+  function toggleCustomNav(key: keyof MemberViewSettings) {
+    setCustomView((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function toggleCustomRepoAction(action: RepoAction) {
+    setCustomRepoActions((prev) =>
+      prev.includes(action)
+        ? prev.filter((a) => a !== action)
+        : [...prev, action],
+    );
+  }
+
   async function sendInvite(e: React.FormEvent) {
     e.preventDefault();
     setInviting(true);
     setInviteResult(null);
     setError(null);
     try {
+      const payload: Record<string, unknown> = {
+        email: inviteEmail,
+        name: inviteName || undefined,
+        mode: inviteMode,
+        projectIds: inviteProjectIds,
+      };
+
+      if (inviteMode === "custom") {
+        payload.role = customRole;
+        payload.viewSettings = customView;
+        payload.repoActions = customRepoActions;
+      }
+
       const res = await fetch("/api/team/invites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: inviteEmail,
-          name: inviteName || undefined,
-          role: inviteRole,
-          projectIds: inviteProjectIds,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Invite failed");
 
-      const parts = [`Invite created for ${data.invite.email}.`];
+      const parts = [
+        `Invite created for ${data.invite.email} (${inviteMode}).`,
+      ];
       if (data.emailSent) {
         parts.push("Email sent via Resend.");
       } else if (data.acceptUrl) {
@@ -241,7 +319,6 @@ export function TeamConsole() {
         </Panel>
       )}
 
-      {/* Invite */}
       <section className="space-y-4">
         <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-mist flex items-center gap-2">
           <UserPlus className="h-4 w-4" />
@@ -249,9 +326,120 @@ export function TeamConsole() {
         </h2>
         <Panel className="p-4 space-y-4">
           <p className="text-sm text-mist">
-            Assign projects, send a Resend invite email, and let them accept via
-            login or join link.
+            Pick an invitation mode to set their default views and repo access.
+            Assign projects so they land on the right work on day one.
           </p>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {INVITE_MODES.map((mode) => {
+              const preset =
+                mode === "custom"
+                  ? null
+                  : INVITE_MODE_PRESETS[mode as Exclude<InviteMode, "custom">];
+              const Icon = MODE_ICONS[mode];
+              const selected = inviteMode === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => selectMode(mode)}
+                  className={cn(
+                    "rounded-lg border p-3 text-left transition-colors",
+                    selected
+                      ? "border-teal bg-teal/10"
+                      : "border-[rgba(122,154,171,0.2)] hover:border-teal/40",
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon className="h-4 w-4 text-teal-bright" />
+                    <span className="font-medium text-foam capitalize">
+                      {preset?.label ?? "Custom"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-mist line-clamp-3">
+                    {preset?.description ??
+                      "Pick role, navigation areas, and repo permissions."}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          <Panel className="bg-[var(--canvas)] border-dashed p-3">
+            <p className="text-xs uppercase tracking-wide text-mist mb-2">
+              Preview — they will see
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {listEnabledNavLabels(invitePreview.viewSettings).map((label) => (
+                <Badge key={label} variant="default">
+                  {label}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-xs text-mist mt-2">
+              Role: <span className="text-foam">{invitePreview.role}</span>
+              {" · "}
+              Repo access:{" "}
+              <span className="text-foam">
+                {invitePreview.repoActions.join(", ") || "none"}
+              </span>
+            </p>
+          </Panel>
+
+          {inviteMode === "custom" && (
+            <div className="space-y-4 border-t border-[var(--border-subtle)] pt-4">
+              <Select
+                label="Role"
+                value={customRole}
+                onChange={(e) => setCustomRole(e.target.value)}
+                options={CUSTOM_ROLES.map((role) => ({
+                  value: role,
+                  label: role,
+                }))}
+              />
+              <div>
+                <p className="text-xs text-mist mb-2">Navigation areas</p>
+                <div className="flex flex-wrap gap-2">
+                  {NAV_VIEW_KEYS.map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleCustomNav(key)}
+                      className={cn(
+                        "rounded-full px-3 py-1 text-xs border transition-colors",
+                        customView[key]
+                          ? "border-teal bg-teal/15 text-teal-bright"
+                          : "border-[rgba(122,154,171,0.2)] text-mist",
+                      )}
+                    >
+                      {NAV_VIEW_LABELS[key]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-mist mb-2">Repo permissions</p>
+                <div className="flex flex-wrap gap-2">
+                  {REPO_ACTION_OPTIONS.map((action) => (
+                    <button
+                      key={action}
+                      type="button"
+                      onClick={() => toggleCustomRepoAction(action)}
+                      className={cn(
+                        "rounded-full px-3 py-1 text-xs border transition-colors",
+                        customRepoActions.includes(action)
+                          ? "border-teal bg-teal/15 text-teal-bright"
+                          : "border-[rgba(122,154,171,0.2)] text-mist",
+                      )}
+                    >
+                      {action}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {inviteResult && (
             <p className="text-sm text-teal-bright break-all">{inviteResult}</p>
           )}
@@ -268,18 +456,13 @@ export function TeamConsole() {
               value={inviteName}
               onChange={(e) => setInviteName(e.target.value)}
             />
-            <Select
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value)}
-              options={ROLES.map((role) => ({ value: role, label: role }))}
-            />
-            <Button type="submit" disabled={inviting}>
+            <Button type="submit" disabled={inviting} className="sm:col-span-2">
               {inviting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
                   <Mail className="h-4 w-4 mr-2" />
-                  Send invite
+                  Send {inviteMode} invite
                 </>
               )}
             </Button>
@@ -306,7 +489,6 @@ export function TeamConsole() {
         </Panel>
       </section>
 
-      {/* Members */}
       <section className="space-y-4">
         <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-mist flex items-center gap-2">
           <Users className="h-4 w-4" />
@@ -336,11 +518,14 @@ export function TeamConsole() {
                         {member.email}
                       </p>
                     )}
-                    {member.role && (
-                      <Badge variant="default" className="mt-1.5">
-                        {member.role}
-                      </Badge>
-                    )}
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {member.role && (
+                        <Badge variant="default">{member.role}</Badge>
+                      )}
+                      {member.inviteMode && (
+                        <Badge variant="default">{member.inviteMode}</Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
               </Panel>
@@ -351,7 +536,6 @@ export function TeamConsole() {
 
       <AccessMatrix />
 
-      {/* Repos — team-level allowed actions (legacy) */}
       <section className="space-y-4">
         <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-mist flex items-center gap-2">
           <GitBranch className="h-4 w-4" />
@@ -423,7 +607,6 @@ export function TeamConsole() {
         )}
       </section>
 
-      {/* Budgets */}
       <section className="space-y-4">
         <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-mist flex items-center gap-2">
           <UserCog className="h-4 w-4" />

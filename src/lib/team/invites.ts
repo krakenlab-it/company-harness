@@ -1,5 +1,9 @@
 import { store } from "@/lib/store/memory-store";
-import type { TeamInvite, TeamMemberRole } from "@/lib/types";
+import type { InviteMode, MemberViewSettings, RepoAction, TeamInvite, TeamMemberRole } from "@/lib/types";
+import {
+  getInvitePublicModeSummary,
+  resolveInviteConfig,
+} from "@/lib/team/invite-modes";
 import {
   sendTeamInviteEmail,
   buildInviteUrl,
@@ -8,10 +12,44 @@ import {
 
 const INVITE_TTL_DAYS = 7;
 
+function applyProjectRepoAccess(input: {
+  memberId: string;
+  projectIds: string[];
+  repoActions: RepoAction[];
+  grantedBy?: string;
+}): void {
+  const repoIds = new Set<string>();
+  for (const projectId of input.projectIds) {
+    const project = store.getProject(projectId);
+    if (project?.repoId) {
+      repoIds.add(project.repoId);
+    }
+  }
+
+  for (const repoId of repoIds) {
+    store.setRepoAccess({
+      memberId: input.memberId,
+      repoId,
+      actions: input.repoActions,
+      grantedBy: input.grantedBy,
+    });
+  }
+}
+
+function linkProjectAssignments(email: string, memberId: string): void {
+  const assignments = store.listProjectAssignments({ email });
+  for (const assignment of assignments) {
+    store.updateProjectAssignment(assignment.id, { memberId });
+  }
+}
+
 export async function createTeamInviteAsync(input: {
   email: string;
   name?: string;
-  role: TeamMemberRole;
+  mode?: InviteMode;
+  role?: TeamMemberRole;
+  viewSettings?: Partial<MemberViewSettings>;
+  repoActions?: RepoAction[];
   projectIds: string[];
   invitedById?: string;
   sendEmail?: boolean;
@@ -33,6 +71,14 @@ export async function createTeamInviteAsync(input: {
     throw new Error("A pending invite already exists for this email");
   }
 
+  const mode = input.mode ?? "dev";
+  const config = resolveInviteConfig({
+    mode,
+    role: input.role,
+    viewSettings: input.viewSettings,
+    repoActions: input.repoActions,
+  });
+
   const expiresAt = new Date(
     Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000,
   ).toISOString();
@@ -40,7 +86,10 @@ export async function createTeamInviteAsync(input: {
   const invite = store.createTeamInvite({
     email: input.email.toLowerCase(),
     name: input.name,
-    role: input.role,
+    role: config.role,
+    inviteMode: mode,
+    viewSettings: config.viewSettings,
+    repoActions: config.repoActions,
     projectIds: input.projectIds,
     invitedById: input.invitedById,
     expiresAt,
@@ -50,7 +99,7 @@ export async function createTeamInviteAsync(input: {
     store.createProjectAssignment({
       projectId,
       email: invite.email,
-      role: input.role,
+      role: config.role,
     });
   }
 
@@ -82,7 +131,7 @@ export async function createTeamInviteAsync(input: {
     entityType: "team_invite",
     entityId: invite.id,
     action: "created",
-    summary: `Invited ${invite.email} as ${invite.role}`,
+    summary: `Invited ${invite.email} as ${mode} (${invite.role})`,
     actorId: input.invitedById,
   });
 
@@ -109,11 +158,25 @@ export function acceptTeamInvite(input: {
     throw new Error("Invite has expired");
   }
 
+  const config = resolveInviteConfig({
+    mode: invite.inviteMode ?? "dev",
+    role: invite.role,
+    viewSettings: invite.viewSettings,
+    repoActions: invite.repoActions,
+  });
+
   const existing = store.getMemberByEmail(invite.email);
   if (existing) {
     store.updateTeamInvite(invite.id, {
       status: "accepted",
       acceptedAt: new Date().toISOString(),
+    });
+    linkProjectAssignments(invite.email, existing.id);
+    applyProjectRepoAccess({
+      memberId: existing.id,
+      projectIds: invite.projectIds,
+      repoActions: config.repoActions,
+      grantedBy: invite.invitedById,
     });
     return {
       member: existing,
@@ -124,15 +187,25 @@ export function acceptTeamInvite(input: {
   const member = store.createMember({
     name: input.name ?? invite.name ?? invite.email.split("@")[0],
     email: invite.email,
-    role: invite.role,
+    role: config.role,
+    inviteMode: invite.inviteMode ?? "dev",
+    viewSettings: config.viewSettings,
     authUserId: input.authUserId,
+  });
+
+  linkProjectAssignments(invite.email, member.id);
+  applyProjectRepoAccess({
+    memberId: member.id,
+    projectIds: invite.projectIds,
+    repoActions: config.repoActions,
+    grantedBy: invite.invitedById,
   });
 
   store.addActivity({
     entityType: "team_member",
     entityId: member.id,
     action: "joined",
-    summary: `${member.name} joined the team via invite`,
+    summary: `${member.name} joined the team via ${invite.inviteMode ?? "dev"} invite`,
   });
 
   const updatedInvite = store.updateTeamInvite(invite.id, {
@@ -154,10 +227,17 @@ export function getInvitePublicView(token: string) {
     .map((id) => store.getProject(id))
     .filter((p): p is NonNullable<typeof p> => Boolean(p));
 
+  const modeSummary = getInvitePublicModeSummary(invite);
+
   return {
     email: invite.email,
     name: invite.name,
     role: invite.role,
+    inviteMode: modeSummary.mode,
+    modeLabel: modeSummary.modeLabel,
+    modeDescription: modeSummary.modeDescription,
+    navPreview: modeSummary.navPreview,
+    repoActions: modeSummary.repoActions,
     status: expired ? "expired" : invite.status,
     expiresAt: invite.expiresAt,
     projects: projects.map((p) => ({ id: p.id, name: p.name, slug: p.slug })),

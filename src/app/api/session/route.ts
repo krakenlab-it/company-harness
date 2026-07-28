@@ -7,6 +7,7 @@ import {
   canAccessMarketing,
   canRequestMarketingTasks,
   canManageMarketingTasks,
+  getSessionViewSettings,
   AuthError,
 } from "@/lib/auth";
 import { jsonError } from "@/lib/api/response";
@@ -14,11 +15,14 @@ import { jsonError } from "@/lib/api/response";
 export async function GET() {
   try {
     const session = await requireAuth();
+    const viewSettings = getSessionViewSettings(session);
     return NextResponse.json({
       memberId: session.memberId,
       name: session.name,
       email: session.email,
       role: session.role,
+      inviteMode: session.member.inviteMode,
+      viewSettings,
       canDelegate: hasAnyAgentsPermission(session.memberId),
       canManageAccess: canManageAccess(session),
       canAccessIntegrations: canAccessIntegrations(session),

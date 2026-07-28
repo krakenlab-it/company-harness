@@ -13,6 +13,11 @@ interface InviteView {
   email: string;
   name?: string;
   role: string;
+  inviteMode: string;
+  modeLabel: string;
+  modeDescription: string;
+  navPreview: string[];
+  repoActions: string[];
   status: string;
   expiresAt: string;
   projects: { id: string; name: string; slug: string }[];
@@ -129,8 +134,10 @@ function JoinContent() {
       <div>
         <h1 className="text-xl font-display font-bold text-foam">Join KrakenLab Harness</h1>
         <p className="text-sm text-mist mt-1">
-          You&apos;ve been invited as <Badge>{invite.role}</Badge>
+          You&apos;ve been invited as{" "}
+          <Badge>{invite.modeLabel}</Badge>
         </p>
+        <p className="text-xs text-mist/80 mt-2">{invite.modeDescription}</p>
       </div>
 
       <div className="text-sm space-y-1">
@@ -138,10 +145,33 @@ function JoinContent() {
           <span className="text-mist">Email:</span> {invite.email}
         </p>
         <p>
+          <span className="text-mist">Role:</span> {invite.role}
+        </p>
+        <p>
           <span className="text-mist">Expires:</span>{" "}
           {new Date(invite.expiresAt).toLocaleDateString()}
         </p>
       </div>
+
+      {invite.navPreview.length > 0 && (
+        <div>
+          <p className="text-sm text-mist mb-2">What you&apos;ll see in the app:</p>
+          <ul className="flex flex-wrap gap-2">
+            {invite.navPreview.map((label) => (
+              <li key={label}>
+                <Badge variant="default">{label}</Badge>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {invite.repoActions.length > 0 && (
+        <div>
+          <p className="text-sm text-mist mb-2">Repository permissions:</p>
+          <p className="text-sm text-foam">{invite.repoActions.join(", ")}</p>
+        </div>
+      )}
 
       {invite.projects.length > 0 && (
         <div>

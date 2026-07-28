@@ -5,11 +5,28 @@ export type TeamMemberRole =
   | "marketing"
   | "viewer";
 
+/** Preset invitation template controlling default role, nav, and repo access */
+export type InviteMode = "admin" | "dev" | "marketing" | "custom";
+
+/** Per-member navigation and area visibility */
+export interface MemberViewSettings {
+  commandCenter: boolean;
+  repos: boolean;
+  work: boolean;
+  marketing: boolean;
+  hermes: boolean;
+  agents: boolean;
+  integrations: boolean;
+  team: boolean;
+}
+
 export interface TeamMember {
   id: string;
   name: string;
   email: string;
   role: TeamMemberRole;
+  inviteMode?: InviteMode;
+  viewSettings?: MemberViewSettings;
   avatar?: string;
   authUserId?: string;
   createdAt: string;
@@ -270,6 +287,9 @@ export interface TeamInvite {
   email: string;
   name?: string;
   role: TeamMemberRole;
+  inviteMode?: InviteMode;
+  viewSettings?: Partial<MemberViewSettings>;
+  repoActions?: RepoAction[];
   token: string;
   projectIds: string[];
   invitedById?: string;
