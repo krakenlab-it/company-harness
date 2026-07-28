@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ExternalLink, Loader2, Scan } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
-import { Panel } from "@/components/ui/panel";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { ErrorPanel } from "@/components/ui/error-panel";
 import { GitActivityGraph } from "@/components/repos/git-activity-graph";
+import { RepoOverviewCard } from "@/components/repos/repo-overview-card";
+import { RepoStackPanel } from "@/components/repos/repo-stack-panel";
 import type { GitHubActivityFeed } from "@/lib/github/activity-types";
 
 export default function RepoDetailPage() {
@@ -92,7 +90,7 @@ export default function RepoDetailPage() {
   if (error || !data) {
     return (
       <>
-        <Topbar title="Repo" />
+        <Topbar title="Repository" />
         <div className="p-6">
           <ErrorPanel message={error ?? "Not found"} />
         </div>
@@ -100,58 +98,24 @@ export default function RepoDetailPage() {
     );
   }
 
+  const displayName = data.repo.name.includes("/")
+    ? data.repo.name.split("/").pop()!
+    : data.repo.name;
+
   return (
     <>
       <Topbar
-        title={data.repo.name}
-        description={data.repo.url}
-        actions={
-          <div className="flex items-center gap-2">
-            <a
-              href={data.repo.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-sm btn-ghost inline-flex items-center"
-            >
-              <ExternalLink className="h-4 w-4 mr-1" />
-              GitHub
-            </a>
-            <Button size="sm" variant="outline" onClick={scanStack} disabled={scanning}>
-              {scanning ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Scan className="h-4 w-4 mr-1" />
-                  Scan stack
-                </>
-              )}
-            </Button>
-          </div>
-        }
+        mission="Observe"
+        title={displayName}
+        description="See what shipped recently, what’s waiting for review, and whether automated checks passed."
       />
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {data.project && (
-            <p className="text-sm text-mist">
-              Linked project:{" "}
-              <Link
-                href={`/projects/${data.project.id}`}
-                className="text-teal-bright hover:underline"
-              >
-                {data.project.name}
-              </Link>
-            </p>
-          )}
-          <Badge variant={githubConnected ? "ok" : "warn"}>
-            {githubConnected ? "GitHub connected" : "GitHub demo mode"}
-          </Badge>
-          <Link
-            href={`/hermes?repo=${encodeURIComponent(data.repo.name)}`}
-            className="text-xs text-teal-bright hover:underline"
-          >
-            Ask Hermes about this repo
-          </Link>
-        </div>
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 max-w-4xl">
+        <RepoOverviewCard
+          name={data.repo.name}
+          url={data.repo.url}
+          githubConnected={githubConnected}
+          project={data.project}
+        />
 
         <GitActivityGraph
           feed={activity}
@@ -161,48 +125,11 @@ export default function RepoDetailPage() {
           refreshing={refreshingActivity}
         />
 
-        <Panel className="overflow-x-auto p-0">
-          <div className="border-b border-[var(--border-subtle)] px-4 py-3">
-            <h2 className="text-sm font-semibold text-foam">Stack scan</h2>
-            <p className="text-xs text-mist mt-0.5">
-              Dependencies from package.json on the default branch
-            </p>
-          </div>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-mist uppercase tracking-wide border-b border-[rgba(122,154,171,0.15)]">
-                <th className="text-left p-2">Package</th>
-                <th className="text-left p-2">Version</th>
-                <th className="text-left p-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.stack.map((dep) => (
-                <tr key={dep.name} className="border-b border-[rgba(122,154,171,0.08)]">
-                  <td className="p-2 text-foam font-medium">
-                    {dep.name}
-                    {dep.critical && (
-                      <Badge variant="warn" className="ml-1">
-                        critical
-                      </Badge>
-                    )}
-                  </td>
-                  <td className="p-2 text-mist font-mono">{dep.version ?? "—"}</td>
-                  <td className="p-2">
-                    <Badge>{dep.status}</Badge>
-                  </td>
-                </tr>
-              ))}
-              {data.stack.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="p-4 text-mist text-center">
-                    No stack scanned yet — run Scan stack
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </Panel>
+        <RepoStackPanel
+          stack={data.stack}
+          scanning={scanning}
+          onScan={scanStack}
+        />
       </div>
     </>
   );

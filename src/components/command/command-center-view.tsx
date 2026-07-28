@@ -76,7 +76,7 @@ function CommandCenterContent() {
       <Topbar
         mission="01 · Observe"
         title="Command Center"
-        description="Entity-level telemetry across repos, stack, tickets, agents, and spend."
+        description="A single view of your repos, open work, AI agents, and spend. Filter by repo on the left, then drill into Hermes or Agents when you need detail."
         actions={
           <div className="flex items-center gap-2">
             <Suspense fallback={null}>
