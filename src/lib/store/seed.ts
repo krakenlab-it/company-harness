@@ -1,4 +1,5 @@
 import type { HarnessSnapshot } from "@/lib/types";
+import { buildDefaultConnections } from "@/lib/integrations/config";
 
 const now = "2026-07-28T00:00:00.000Z";
 const weekAgo = "2026-07-21T00:00:00.000Z";
@@ -623,4 +624,14 @@ export const seedData: HarnessSnapshot = {
       createdAt: weekAgo,
     },
   ],
+
+  integrationConnections: buildDefaultConnections(),
+  teamInvites: [],
+  projectAssignments: [],
+  triggerRuns: [],
+  openRouterUsage: [],
+  googleCalendarEvents: [],
+  googleGmailThreads: [],
+  gcpHealthChecks: [],
+  githubRepositories: [],
 };

@@ -3,19 +3,31 @@ import type {
   CrmContact,
   CrmDeal,
   CursorAgentJob,
+  GcpHealthCheck,
+  GitHubRepositorySync,
+  GoogleCalendarEventSummary,
+  GoogleGmailThreadSummary,
   HarnessSnapshot,
   HermesMessage,
+  IntegrationConnection,
+  IntegrationProvider,
+  IntegrationStatus,
+  OpenRouterUsageSnapshot,
   Project,
+  ProjectAssignment,
   ProviderCost,
   Sprint,
   StackDependency,
   TeamBudget,
+  TeamInvite,
   TeamMember,
   TeamRepo,
   Ticket,
+  TriggerJobRun,
 } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { seedData } from "@/lib/store/seed";
+import { buildDefaultConnections } from "@/lib/integrations/config";
 
 type EntityWithId = { id: string };
 
@@ -366,6 +378,184 @@ class MemoryStore {
   listHermesMessages(limit?: number): HermesMessage[] {
     const messages = this.list(this.state.hermesMessages);
     return limit ? messages.slice(-limit) : messages;
+  }
+
+  listIntegrationConnections(): IntegrationConnection[] {
+    return this.list(this.state.integrationConnections);
+  }
+
+  setIntegrationStatus(
+    provider: IntegrationProvider,
+    status: IntegrationStatus,
+    lastError?: string,
+    metadataPatch?: Record<string, unknown>,
+  ): IntegrationConnection | undefined {
+    const index = this.state.integrationConnections.findIndex(
+      (c) => c.provider === provider,
+    );
+    if (index === -1) {
+      const conn: IntegrationConnection = {
+        id: uid("conn"),
+        provider,
+        label: provider,
+        status,
+        configured: status === "connected",
+        lastSyncAt: status === "connected" ? new Date().toISOString() : undefined,
+        lastError,
+        metadata: metadataPatch,
+      };
+      this.state.integrationConnections.push(conn);
+      return clone(conn);
+    }
+
+    const existing = this.state.integrationConnections[index];
+    this.state.integrationConnections[index] = {
+      ...existing,
+      status,
+      configured: status !== "disconnected",
+      lastSyncAt: status === "connected" ? new Date().toISOString() : existing.lastSyncAt,
+      lastError: lastError ?? (status === "connected" ? undefined : existing.lastError),
+      metadata: metadataPatch
+        ? { ...existing.metadata, ...metadataPatch }
+        : existing.metadata,
+    };
+    return clone(this.state.integrationConnections[index]);
+  }
+
+  refreshIntegrationConnectionsFromEnv(): IntegrationConnection[] {
+    this.state.integrationConnections = buildDefaultConnections();
+    return this.listIntegrationConnections();
+  }
+
+  recordOpenRouterUsage(
+    snapshot: Omit<OpenRouterUsageSnapshot, "id" | "recordedAt">,
+  ): OpenRouterUsageSnapshot {
+    const entry: OpenRouterUsageSnapshot = {
+      ...snapshot,
+      id: uid("orusage"),
+      recordedAt: new Date().toISOString(),
+    };
+    this.state.openRouterUsage.unshift(entry);
+    return clone(entry);
+  }
+
+  listOpenRouterUsage(limit = 30): OpenRouterUsageSnapshot[] {
+    return this.list(this.state.openRouterUsage).slice(0, limit);
+  }
+
+  replaceTriggerRuns(runs: TriggerJobRun[]): TriggerJobRun[] {
+    this.state.triggerRuns = clone(runs);
+    return this.listTriggerRuns();
+  }
+
+  listTriggerRuns(limit = 50): TriggerJobRun[] {
+    return this.list(this.state.triggerRuns).slice(0, limit);
+  }
+
+  replaceGoogleCalendarEvents(
+    events: GoogleCalendarEventSummary[],
+  ): GoogleCalendarEventSummary[] {
+    this.state.googleCalendarEvents = clone(events);
+    return this.listGoogleCalendarEvents();
+  }
+
+  listGoogleCalendarEvents(): GoogleCalendarEventSummary[] {
+    return this.list(this.state.googleCalendarEvents);
+  }
+
+  replaceGoogleGmailThreads(
+    threads: GoogleGmailThreadSummary[],
+  ): GoogleGmailThreadSummary[] {
+    this.state.googleGmailThreads = clone(threads);
+    return this.listGoogleGmailThreads();
+  }
+
+  listGoogleGmailThreads(): GoogleGmailThreadSummary[] {
+    return this.list(this.state.googleGmailThreads);
+  }
+
+  replaceGcpHealthChecks(checks: GcpHealthCheck[]): GcpHealthCheck[] {
+    this.state.gcpHealthChecks = clone(checks);
+    return this.listGcpHealthChecks();
+  }
+
+  listGcpHealthChecks(): GcpHealthCheck[] {
+    return this.list(this.state.gcpHealthChecks);
+  }
+
+  replaceGitHubRepositories(repos: GitHubRepositorySync[]): GitHubRepositorySync[] {
+    this.state.githubRepositories = clone(repos);
+    return this.listGitHubRepositories();
+  }
+
+  listGitHubRepositories(): GitHubRepositorySync[] {
+    return this.list(this.state.githubRepositories);
+  }
+
+  listTeamInvites(status?: TeamInvite["status"]): TeamInvite[] {
+    const invites = this.list(this.state.teamInvites);
+    return status ? invites.filter((i) => i.status === status) : invites;
+  }
+
+  getTeamInviteByToken(token: string): TeamInvite | undefined {
+    return clone(
+      this.state.teamInvites.find((i) => i.token === token),
+    );
+  }
+
+  createTeamInvite(
+    input: Omit<TeamInvite, "id" | "token" | "status" | "createdAt">,
+  ): TeamInvite {
+    const invite: TeamInvite = {
+      ...input,
+      id: uid("invite"),
+      token: crypto.randomUUID(),
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    };
+    return this.create(this.state.teamInvites, invite);
+  }
+
+  updateTeamInvite(
+    id: string,
+    patch: Partial<TeamInvite>,
+  ): TeamInvite | undefined {
+    return this.update(this.state.teamInvites, id, patch);
+  }
+
+  listProjectAssignments(filters?: {
+    projectId?: string;
+    email?: string;
+  }): ProjectAssignment[] {
+    let assignments = this.list(this.state.projectAssignments);
+    if (filters?.projectId) {
+      assignments = assignments.filter((a) => a.projectId === filters.projectId);
+    }
+    if (filters?.email) {
+      assignments = assignments.filter(
+        (a) => a.email.toLowerCase() === filters.email!.toLowerCase(),
+      );
+    }
+    return assignments;
+  }
+
+  createProjectAssignment(
+    input: Omit<ProjectAssignment, "id" | "assignedAt">,
+  ): ProjectAssignment {
+    const assignment: ProjectAssignment = {
+      ...input,
+      id: uid("assign"),
+      assignedAt: new Date().toISOString(),
+    };
+    return this.create(this.state.projectAssignments, assignment);
+  }
+
+  getMemberByEmail(email: string): TeamMember | undefined {
+    return clone(
+      this.state.members.find(
+        (m) => m.email.toLowerCase() === email.toLowerCase(),
+      ),
+    );
   }
 }
 

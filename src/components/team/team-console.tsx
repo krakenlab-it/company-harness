@@ -5,14 +5,17 @@ import {
   AlertTriangle,
   GitBranch,
   Loader2,
+  Mail,
   Save,
   UserCog,
+  UserPlus,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 
@@ -39,8 +42,22 @@ interface Budget {
 
 const ALL_ACTIONS = ["read", "write", "deploy", "admin"] as const;
 
+interface ProjectOption {
+  id: string;
+  name: string;
+}
+
+const ROLES = ["admin", "lead", "dev", "viewer"] as const;
+
 export function TeamConsole() {
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState<string>("dev");
+  const [inviteProjectIds, setInviteProjectIds] = useState<string[]>([]);
+  const [inviting, setInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState<string | null>(null);
   const [repos, setRepos] = useState<RepoAccess[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +80,18 @@ export function TeamConsole() {
       setMembers(data.members ?? []);
       setRepos(data.repos ?? []);
       setBudgets(data.budgets ?? []);
+
+      const projRes = await fetch("/api/projects");
+      if (projRes.ok) {
+        const projData = await projRes.json();
+        const list = projData.projects ?? projData ?? [];
+        setProjects(
+          list.map((p: { id: string; name: string }) => ({
+            id: p.id,
+            name: p.name,
+          })),
+        );
+      }
 
       const budgetEdits: Record<
         string,
@@ -91,6 +120,53 @@ export function TeamConsole() {
   useEffect(() => {
     loadTeam();
   }, []);
+
+  async function sendInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setInviting(true);
+    setInviteResult(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/team/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: inviteEmail,
+          name: inviteName || undefined,
+          role: inviteRole,
+          projectIds: inviteProjectIds,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Invite failed");
+
+      const parts = [`Invite created for ${data.invite.email}.`];
+      if (data.emailSent) {
+        parts.push("Email sent via Resend.");
+      } else if (data.acceptUrl) {
+        parts.push(`Share link: ${data.acceptUrl}`);
+      }
+      if (data.emailError) {
+        parts.push(`Email error: ${data.emailError}`);
+      }
+      setInviteResult(parts.join(" "));
+      setInviteEmail("");
+      setInviteName("");
+      setInviteProjectIds([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invite failed");
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  function toggleInviteProject(projectId: string) {
+    setInviteProjectIds((prev) =>
+      prev.includes(projectId)
+        ? prev.filter((id) => id !== projectId)
+        : [...prev, projectId],
+    );
+  }
 
   function toggleAction(repoId: string, action: string) {
     setRepoActions((prev) => {
@@ -163,6 +239,71 @@ export function TeamConsole() {
           {error}
         </Panel>
       )}
+
+      {/* Invite */}
+      <section className="space-y-4">
+        <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-mist flex items-center gap-2">
+          <UserPlus className="h-4 w-4" />
+          Invite teammate
+        </h2>
+        <Panel className="p-4 space-y-4">
+          <p className="text-sm text-mist">
+            Assign projects, send a Resend invite email, and let them accept via
+            login or join link.
+          </p>
+          {inviteResult && (
+            <p className="text-sm text-teal-bright break-all">{inviteResult}</p>
+          )}
+          <form onSubmit={sendInvite} className="grid gap-3 sm:grid-cols-2">
+            <Input
+              type="email"
+              placeholder="Email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              required
+            />
+            <Input
+              placeholder="Name (optional)"
+              value={inviteName}
+              onChange={(e) => setInviteName(e.target.value)}
+            />
+            <Select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+              options={ROLES.map((role) => ({ value: role, label: role }))}
+            />
+            <Button type="submit" disabled={inviting}>
+              {inviting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send invite
+                </>
+              )}
+            </Button>
+          </form>
+          {projects.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {projects.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggleInviteProject(p.id)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs border transition-colors",
+                    inviteProjectIds.includes(p.id)
+                      ? "border-teal bg-teal/15 text-teal-bright"
+                      : "border-[rgba(122,154,171,0.2)] text-mist hover:text-foam",
+                  )}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </Panel>
+      </section>
 
       {/* Members */}
       <section className="space-y-4">
