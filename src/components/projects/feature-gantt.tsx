@@ -20,11 +20,11 @@ export interface GanttSprint {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  backlog: "bg-mist/30",
-  todo: "bg-teal/40",
-  in_progress: "bg-teal-bright/60",
-  review: "bg-warn/50",
-  done: "bg-ok/50",
+  backlog: "bg-[var(--surface-soft)]",
+  todo: "bg-[var(--surface-muted)]",
+  in_progress: "bg-foam/70",
+  review: "bg-[var(--sand)]/40",
+  done: "bg-ok/30",
 };
 
 function parseDate(iso?: string, fallback?: string): number {
@@ -96,11 +96,11 @@ export function FeatureGantt({
         <span>{rangeStart}</span>
         <span>{rangeEnd}</span>
       </div>
-      <div className="border border-[rgba(122,154,171,0.15)] rounded-md overflow-hidden">
+      <div className="border border-[var(--border)] rounded-lg overflow-hidden">
         {rows.map((row) => (
           <div
             key={`${row.kind}-${row.id}`}
-            className="flex items-center h-6 border-b border-[rgba(122,154,171,0.08)] last:border-0"
+            className="flex items-center h-6 border-b border-[var(--border-subtle)] last:border-0"
           >
             <div
               className="w-32 shrink-0 truncate px-2 text-[10px] text-mist"
@@ -109,12 +109,12 @@ export function FeatureGantt({
               {row.kind === "sprint" ? "◆ " : "▸ "}
               {row.label}
             </div>
-            <div className="relative flex-1 h-full bg-ocean/30">
+            <div className="relative flex-1 h-full bg-[var(--surface)]">
               <div
                 className={cn(
                   "absolute top-1 bottom-1 rounded-sm min-w-[2px]",
                   row.kind === "sprint"
-                    ? "bg-teal/25 border border-teal/40"
+                    ? "bg-[var(--surface-muted)] border border-[var(--border)]"
                     : STATUS_COLORS[row.status] ?? "bg-mist/30",
                 )}
                 style={{

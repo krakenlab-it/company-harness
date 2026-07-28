@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Send, Wifi, WifiOff } from "lucide-react";
+import { ArrowUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +40,7 @@ export function HermesChat() {
     offline: false,
   });
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -72,8 +72,8 @@ export function HermesChat() {
       });
   }, []);
 
-  async function handleSend(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSend(e?: React.FormEvent) {
+    e?.preventDefault();
     const text = input.trim();
     if (!text || sending) return;
 
@@ -127,109 +127,119 @@ export function HermesChat() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-8rem)] flex-col gap-4 md:h-[calc(100dvh-6rem)]">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="teal">In-app channel</Badge>
-          <Badge variant="default">{context.repos} repos</Badge>
-          <Badge variant="default">{context.openTickets} tickets</Badge>
-          <Badge variant="default">{context.activeAgents} agents</Badge>
-          {status.offline ? (
-            <Badge variant="warn">
-              <WifiOff className="h-3 w-3" aria-hidden />
-              Offline
-            </Badge>
-          ) : status.configured ? (
-            <Badge variant="ok">
-              <Wifi className="h-3 w-3" aria-hidden />
-              Connected
-            </Badge>
-          ) : (
-            <Badge variant="warn">Not configured</Badge>
-          )}
-        </div>
+    <div className="flex h-[calc(100dvh-8rem)] flex-col gap-3 md:h-[calc(100dvh-6rem)]">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-mist">
+        <Badge variant="default">{context.repos} repos in context</Badge>
+        <Badge variant="default">{context.openTickets} open tickets</Badge>
+        <Badge variant="default">{context.activeAgents} active agents</Badge>
+        {status.offline && <Badge variant="warn">Offline mode</Badge>}
+        {!status.configured && !status.offline && (
+          <Badge variant="warn">Demo — add GROQ_API_KEY for live AI</Badge>
+        )}
       </div>
 
-      <Panel padding="none" className="flex flex-1 flex-col overflow-hidden">
+      <Panel
+        padding="none"
+        className="flex flex-1 flex-col overflow-hidden border-[var(--border)]"
+      >
         <div
-          className="flex-1 overflow-y-auto p-4 space-y-4"
+          className="flex-1 overflow-y-auto px-4 py-6 sm:px-6"
           role="log"
           aria-live="polite"
           aria-label="Chat messages"
         >
           {messages.length === 0 && (
-            <div className="flex h-full items-center justify-center text-center">
-              <div className="space-y-2 animate-fade-up">
-                <p className="font-display text-lg font-semibold text-foam">
-                  Hermes
-                </p>
-                <p className="max-w-xs text-sm text-mist">
-                  Your operations assistant. Ask about projects, tickets, or
-                  team workflows.
-                </p>
+            <div className="flex h-full min-h-[200px] flex-col items-center justify-center text-center px-4">
+              <p className="font-display text-2xl font-semibold tracking-tight text-foam mb-2">
+                What can Hermes help with?
+              </p>
+              <p className="max-w-md text-sm text-mist leading-relaxed">
+                Ask about project status, repo stack, open tickets, spend, or
+                team workflows. Hermes reads your harness context — it cannot
+                delegate Cursor agents.
+              </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                {[
+                  "Summarize open tickets",
+                  "Stack health by repo",
+                  "What are we spending this month?",
+                ].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => setInput(suggestion)}
+                    className="rounded-full border border-[var(--border)] px-3 py-1.5 text-xs text-mist hover:bg-[var(--surface-muted)] hover:text-foam transition-colors"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={cn(
-                "flex animate-fade-up",
-                msg.role === "user" ? "justify-end" : "justify-start",
-              )}
-            >
+          <div className="mx-auto max-w-3xl space-y-6">
+            {messages.map((msg) => (
               <div
+                key={msg.id}
                 className={cn(
-                  "max-w-[85%] rounded-lg px-3.5 py-2.5 text-sm leading-relaxed sm:max-w-[70%]",
-                  msg.role === "user"
-                    ? "bg-teal/30 text-foam border border-teal/20"
-                    : "bg-[rgba(122,154,171,0.08)] text-foam border border-[rgba(122,154,171,0.12)]",
+                  "flex",
+                  msg.role === "user" ? "justify-end" : "justify-start",
                 )}
               >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+                <div
+                  className={cn(
+                    "max-w-[90%] text-sm leading-relaxed sm:max-w-[85%]",
+                    msg.role === "user"
+                      ? "message-user px-4 py-3"
+                      : "message-assistant px-1 py-1",
+                  )}
+                >
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
           <div ref={bottomRef} />
         </div>
 
         {error && (
-          <div className="border-t border-danger/20 bg-danger/5 px-4 py-2 text-sm text-danger">
+          <div className="border-t border-[var(--border-subtle)] bg-[var(--surface)] px-4 py-2 text-sm text-danger">
             {error}
           </div>
         )}
 
         <form
           onSubmit={handleSend}
-          className="border-t border-[rgba(122,154,171,0.12)] p-4"
+          className="border-t border-[var(--border)] p-4 bg-[var(--canvas)]"
         >
-          <div className="flex gap-2">
-            <Textarea
+          <div className="mx-auto max-w-3xl prompt-composer flex items-end gap-2 p-2 pl-4">
+            <textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Message Hermes…"
-              rows={2}
-              className="min-h-[2.75rem] flex-1 resize-none"
-              disabled={sending || status.offline}
+              placeholder="Message Hermes"
+              rows={1}
+              className="flex-1 resize-none bg-transparent py-2 text-sm text-foam placeholder:text-sand outline-none min-h-[24px] max-h-[120px]"
+              disabled={sending}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  handleSend(e);
+                  handleSend();
                 }
               }}
               aria-label="Message input"
             />
             <Button
               type="submit"
-              disabled={!input.trim() || sending || status.offline}
-              className="self-end"
+              size="icon"
+              disabled={!input.trim() || sending}
+              className="rounded-full h-8 w-8 shrink-0 mb-0.5"
               aria-label="Send message"
             >
               {sending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Send className="h-4 w-4" />
+                <ArrowUp className="h-4 w-4" />
               )}
             </Button>
           </div>

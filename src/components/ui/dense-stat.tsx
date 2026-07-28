@@ -14,14 +14,14 @@ export function DenseStat({
   return (
     <div
       className={cn(
-        "flex items-baseline gap-2 border border-[rgba(122,154,171,0.15)] rounded-md px-3 py-2 bg-ocean-subtle/50",
+        "flex items-baseline gap-2 border border-[var(--border)] rounded-lg px-3 py-2.5 bg-[var(--canvas)]",
         className,
       )}
     >
-      <span className="text-[11px] uppercase tracking-wide text-mist shrink-0">
+      <span className="text-[10px] font-medium uppercase tracking-wider text-mist shrink-0">
         {label}
       </span>
-      <span className="font-display font-semibold text-foam text-sm tabular-nums">
+      <span className="font-display font-semibold text-foam text-sm tabular-nums tracking-tight">
         {value}
       </span>
       {meta && (

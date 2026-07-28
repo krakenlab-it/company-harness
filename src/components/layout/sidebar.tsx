@@ -57,7 +57,7 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
     <div className={cn("flex items-center gap-2.5", compact && "gap-2")}>
       <div
         className={cn(
-          "flex items-center justify-center rounded-lg bg-gradient-to-br from-teal to-teal-bright",
+          "flex items-center justify-center rounded-md border border-[var(--border)] bg-[var(--canvas)]",
           compact ? "h-7 w-7" : "h-8 w-8",
         )}
         aria-hidden
@@ -65,30 +65,28 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
         <svg
           viewBox="0 0 24 24"
           fill="none"
-          className={cn("text-foam", compact ? "h-4 w-4" : "h-4.5 w-4.5")}
+          className={cn("text-foam", compact ? "h-3.5 w-3.5" : "h-4 w-4")}
         >
           <path
-            d="M12 3C8 3 5 6 5 10c0 2.5 1.2 4.7 3 6.2V19a2 2 0 002 2h4a2 2 0 002-2v-2.8c1.8-1.5 3-3.7 3-6.2 0-4-3-7-7-7z"
-            fill="currentColor"
-            opacity="0.9"
+            d="M12 2L4 7v10l8 5 8-5V7l-8-5z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
           />
-          <circle cx="9" cy="10" r="1" fill="var(--ink)" />
-          <circle cx="15" cy="10" r="1" fill="var(--ink)" />
+          <circle cx="12" cy="12" r="2" fill="currentColor" />
         </svg>
       </div>
       <div className="min-w-0">
         <p
           className={cn(
-            "font-display font-bold leading-none text-foam",
-            compact ? "text-sm" : "text-base",
+            "font-display font-semibold leading-none text-foam tracking-tight",
+            compact ? "text-sm" : "text-[0.9375rem]",
           )}
         >
           KrakenLab
         </p>
         {!compact && (
-          <p className="text-[0.65rem] uppercase tracking-[0.15em] text-mist">
-            Harness
-          </p>
+          <p className="text-[0.6875rem] text-mist mt-0.5">Company OS</p>
         )}
       </div>
     </div>
@@ -129,7 +127,7 @@ function NavLinks({
             )}
             aria-current={active ? "page" : undefined}
           >
-            <Icon className="h-4 w-4 shrink-0" aria-hidden />
+            <Icon className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
             <span>{label}</span>
           </Link>
         );
@@ -160,37 +158,37 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="hidden md:flex md:w-56 lg:w-60 shrink-0 flex-col border-r border-[rgba(122,154,171,0.12)] bg-ocean-subtle">
-        <div className="flex h-16 items-center border-b border-[rgba(122,154,171,0.12)] px-4">
+      <aside className="hidden md:flex md:w-56 lg:w-52 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--canvas)]">
+        <div className="flex h-14 items-center px-4">
           <BrandMark />
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
           <NavLinks orientation="vertical" session={session} />
-          <div className="pt-2 border-t border-[rgba(122,154,171,0.12)]">
-            <p className="text-[10px] uppercase tracking-wide text-mist mb-2 px-2">
-              Repo filter
+          <div className="pt-3 border-t border-[var(--border-subtle)] px-1">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-mist mb-2 px-2">
+              Filter
             </p>
             <Suspense fallback={null}>
               <RepoSelector className="w-full" />
             </Suspense>
           </div>
         </div>
-        <div className="border-t border-[rgba(122,154,171,0.12)] p-4 space-y-2">
+        <div className="border-t border-[var(--border-subtle)] px-4 py-3 space-y-1">
           <Link
             href="/login"
-            className="text-xs text-teal-bright hover:underline"
+            className="text-xs text-mist hover:text-foam transition-colors"
           >
             Sign in
           </Link>
-          <p className="text-[0.65rem] text-mist/70">KrakenLab Media Co.</p>
+          <p className="text-[10px] text-sand">KrakenLab Media</p>
         </div>
       </aside>
 
-      <header className="md:hidden border-b border-[rgba(122,154,171,0.12)] bg-ocean-subtle">
-        <div className="flex h-14 items-center px-4">
+      <header className="md:hidden border-b border-[var(--border)] bg-[var(--canvas)]">
+        <div className="flex h-12 items-center px-4">
           <BrandMark compact />
         </div>
-        <div className="px-3 pb-2">
+        <div className="px-2 pb-2">
           <NavLinks orientation="horizontal" session={session} />
         </div>
       </header>

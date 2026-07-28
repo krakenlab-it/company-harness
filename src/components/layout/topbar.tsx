@@ -12,20 +12,22 @@ export function Topbar({ title, description, actions, className }: TopbarProps) 
   return (
     <header
       className={cn(
-        "flex flex-col gap-4 border-b border-[rgba(122,154,171,0.12)] bg-ocean-subtle/50 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 animate-fade-up",
+        "flex flex-col gap-3 border-b border-[var(--border)] bg-[var(--canvas)] px-4 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-6 sm:py-5",
         className,
       )}
     >
       <div className="min-w-0 space-y-1">
-        <h1 className="font-display text-xl font-bold tracking-tight text-foam sm:text-2xl">
+        <h1 className="font-display text-lg font-semibold tracking-tight text-foam sm:text-xl">
           {title}
         </h1>
         {description && (
-          <p className="max-w-2xl text-sm text-mist">{description}</p>
+          <p className="max-w-2xl text-sm text-mist leading-relaxed">
+            {description}
+          </p>
         )}
       </div>
       {actions && (
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        <div className="flex shrink-0 items-center gap-2 pb-0.5">{actions}</div>
       )}
     </header>
   );

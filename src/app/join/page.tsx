@@ -165,7 +165,7 @@ function JoinContent() {
           <label className="block text-sm">
             <span className="text-mist">Your name</span>
             <input
-              className="mt-1 w-full rounded-lg border border-[rgba(122,154,171,0.2)] bg-ocean px-3 py-2 text-foam"
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--canvas)] px-3 py-2 text-foam"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="How you'll appear on the team"
@@ -200,7 +200,7 @@ function JoinContent() {
 
 export default function JoinPage() {
   return (
-    <div className="min-h-screen bg-ocean flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--canvas)] flex items-center justify-center p-6">
       <Suspense
         fallback={
           <div className="text-mist">

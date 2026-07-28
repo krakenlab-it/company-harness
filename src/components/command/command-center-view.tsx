@@ -113,37 +113,37 @@ function CommandCenterContent() {
             <ConnectorStrip connectors={data.connectors} />
 
             <Panel className="overflow-x-auto p-0">
-              <table className="w-full text-xs">
+              <table className="data-table w-full text-xs">
                 <thead>
-                  <tr className="border-b border-[rgba(122,154,171,0.15)] text-mist uppercase tracking-wide">
-                    <th className="text-left p-2 font-medium">Repo</th>
-                    <th className="text-left p-2 font-medium">Stack</th>
-                    <th className="text-right p-2 font-medium">Tickets</th>
-                    <th className="text-right p-2 font-medium">Agents</th>
-                    <th className="text-right p-2 font-medium">Spend</th>
-                    <th className="text-left p-2 font-medium">Health</th>
+                  <tr className="border-b border-[var(--border)]">
+                    <th className="text-left p-3 font-medium">Repo</th>
+                    <th className="text-left p-3 font-medium">Stack</th>
+                    <th className="text-right p-3 font-medium">Tickets</th>
+                    <th className="text-right p-3 font-medium">Agents</th>
+                    <th className="text-right p-3 font-medium">Spend</th>
+                    <th className="text-left p-3 font-medium">Health</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.rows.map((row) => (
                     <tr
                       key={row.repo.id}
-                      className="border-b border-[rgba(122,154,171,0.08)] hover:bg-[rgba(122,154,171,0.04)]"
+                      className="border-b border-[var(--border-subtle)]"
                     >
-                      <td className="p-2">
+                      <td className="p-3">
                         <Link
                           href={`/repos/${row.repo.id}`}
-                          className="text-teal-bright hover:underline font-medium"
+                          className="text-foam font-medium hover:underline"
                         >
                           {row.repo.name}
                         </Link>
                         {row.project && (
-                          <span className="block text-[10px] text-mist truncate">
+                          <span className="block text-[11px] text-mist truncate mt-0.5">
                             {row.project.name}
                           </span>
                         )}
                       </td>
-                      <td className="p-2 text-mist tabular-nums">
+                      <td className="p-3 text-mist tabular-nums">
                         {row.stackCount} deps
                         {row.stackHealthPct != null && (
                           <span className="text-foam ml-1">
@@ -151,16 +151,16 @@ function CommandCenterContent() {
                           </span>
                         )}
                       </td>
-                      <td className="p-2 text-right tabular-nums text-foam">
+                      <td className="p-3 text-right tabular-nums text-foam">
                         {row.openTickets}
                       </td>
-                      <td className="p-2 text-right tabular-nums text-foam">
+                      <td className="p-3 text-right tabular-nums text-foam">
                         {row.activeAgents || "—"}
                       </td>
-                      <td className="p-2 text-right tabular-nums text-foam">
+                      <td className="p-3 text-right tabular-nums text-foam">
                         {formatUsd(row.spendUsd)}
                       </td>
-                      <td className="p-2">
+                      <td className="p-3">
                         <Badge
                           variant={
                             row.health === "ok"
@@ -196,7 +196,7 @@ function CommandCenterContent() {
                   )}
                 </ul>
                 {data.canDelegate && (
-                  <Link href="/agents" className="text-xs text-teal-bright mt-2 inline-block hover:underline">
+                  <Link href="/agents" className="text-xs text-mist hover:text-foam mt-2 inline-block underline underline-offset-2">
                     Delegate via Agents →
                   </Link>
                 )}

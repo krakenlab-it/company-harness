@@ -9,7 +9,7 @@ const buttonVariants = cva("btn", {
       ghost: "btn-ghost",
       danger: "btn-danger",
       outline:
-        "bg-transparent border border-[rgba(122,154,171,0.25)] text-foam hover:bg-[rgba(122,154,171,0.08)]",
+        "bg-transparent border border-[var(--border)] text-foam hover:bg-[var(--surface-muted)]",
     },
     size: {
       sm: "btn-sm",
