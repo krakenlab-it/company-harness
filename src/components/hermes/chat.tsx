@@ -15,6 +15,7 @@ import {
   persistModelSelection,
   type ModelSelectorValue,
 } from "@/components/hermes/model-selector";
+import { getDefaultCuratedModel } from "@/lib/hermes/providers";
 import { MessageTagStrip } from "@/components/hermes/message-tag-strip";
 import { COMPOSER_TAG_HELP } from "@/lib/hermes/composer-tags";
 import type { HermesComposerTagMeta } from "@/lib/types";
@@ -68,10 +69,9 @@ export function HermesChat() {
     configured: true,
     offline: false,
   });
-  const [modelSelection, setModelSelection] = useState<ModelSelectorValue>({
-    provider: "nvidia",
-    model: "z-ai/glm-5.2",
-  });
+  const [modelSelection, setModelSelection] = useState<ModelSelectorValue>(
+    getDefaultCuratedModel(),
+  );
   const bottomRef = useRef<HTMLDivElement>(null);
   const modelInitRef = useRef(false);
 
@@ -154,6 +154,17 @@ export function HermesChat() {
     const text = input.trim();
     if (!text || sending) return;
 
+    const needsNvidia = modelSelection.provider === "nvidia";
+    const needsGroq = modelSelection.provider === "groq";
+    if (needsNvidia && !status.nvidiaAvailable) {
+      setError("Add NVIDIA_API_KEY to .env.local to use NVIDIA models.");
+      return;
+    }
+    if (needsGroq && !status.groqAvailable) {
+      setError("Add GROQ_API_KEY to .env.local to use Groq models.");
+      return;
+    }
+
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: "user",
@@ -198,12 +209,9 @@ export function HermesChat() {
     }
   }
 
-  const availableProviders = [
-    status.nvidiaAvailable && "nvidia",
-    status.groqAvailable && "groq",
-  ].filter(Boolean) as HermesProviderId[];
-
   const jobsById = new Map(trackedJobs.map((j) => [j.id, j]));
+  const selectedLabel =
+    modelSelection.provider === "nvidia" ? "NVIDIA" : "Groq";
 
   return (
     <div className="flex h-[calc(100dvh-7rem)] flex-col gap-3 md:h-[calc(100dvh-5.5rem)]">
@@ -222,9 +230,8 @@ export function HermesChat() {
         <HermesModelSelector
           value={modelSelection}
           onChange={setModelSelection}
-          availableProviders={
-            availableProviders.length > 0 ? availableProviders : undefined
-          }
+          nvidiaAvailable={status.nvidiaAvailable}
+          groqAvailable={status.groqAvailable}
         />
         {scopedRepo && (
           <Badge variant="teal">Repo: {scopedRepo}</Badge>
@@ -237,10 +244,7 @@ export function HermesChat() {
             Demo mode
           </Badge>
         ) : (
-          <Badge variant="ok">
-            {modelSelection.provider === "nvidia" ? "NIM" : "Groq"} ·{" "}
-            {modelSelection.model.split("/").pop()}
-          </Badge>
+          <Badge variant="ok">{selectedLabel}</Badge>
         )}
       </header>
       {status.offline && status.hint && (

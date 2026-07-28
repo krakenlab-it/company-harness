@@ -2,12 +2,14 @@
 
 import { cn } from "@/lib/utils";
 import {
-  HERMES_PROVIDERS,
+  HERMES_CURATED_MODELS,
+  decodeModelChoice,
+  encodeModelChoice,
+  getDefaultCuratedModel,
   type HermesProviderId,
 } from "@/lib/hermes/providers";
 
-const STORAGE_PROVIDER = "hermes_provider";
-const STORAGE_MODEL = "hermes_model";
+const STORAGE_KEY = "hermes_model_choice";
 
 export interface ModelSelectorValue {
   provider: HermesProviderId;
@@ -17,7 +19,8 @@ export interface ModelSelectorValue {
 interface ModelSelectorProps {
   value: ModelSelectorValue;
   onChange: (next: ModelSelectorValue) => void;
-  availableProviders?: HermesProviderId[];
+  nvidiaAvailable?: boolean;
+  groqAvailable?: boolean;
   className?: string;
 }
 
@@ -26,16 +29,18 @@ export function loadStoredModelSelection(
 ): ModelSelectorValue {
   if (typeof window === "undefined") return fallback;
   try {
-    const provider = localStorage.getItem(STORAGE_PROVIDER) as HermesProviderId | null;
-    const model = localStorage.getItem(STORAGE_MODEL);
-    if (
-      (provider === "groq" || provider === "nvidia") &&
-      model &&
-      HERMES_PROVIDERS.find((p) => p.id === provider)?.models.some(
-        (m) => m.id === model,
-      )
-    ) {
-      return { provider, model };
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const decoded = decodeModelChoice(stored);
+      if (decoded) return decoded;
+    }
+    // legacy keys
+    const provider = localStorage.getItem("hermes_provider") as HermesProviderId | null;
+    const model = localStorage.getItem("hermes_model");
+    if ((provider === "groq" || provider === "nvidia") && model) {
+      const encoded = encodeModelChoice(provider, model);
+      const decoded = decodeModelChoice(encoded);
+      if (decoded) return decoded;
     }
   } catch {
     /* ignore */
@@ -45,8 +50,10 @@ export function loadStoredModelSelection(
 
 export function persistModelSelection(value: ModelSelectorValue) {
   try {
-    localStorage.setItem(STORAGE_PROVIDER, value.provider);
-    localStorage.setItem(STORAGE_MODEL, value.model);
+    localStorage.setItem(
+      STORAGE_KEY,
+      encodeModelChoice(value.provider, value.model),
+    );
   } catch {
     /* ignore */
   }
@@ -55,58 +62,58 @@ export function persistModelSelection(value: ModelSelectorValue) {
 export function HermesModelSelector({
   value,
   onChange,
-  availableProviders,
+  nvidiaAvailable,
+  groqAvailable,
   className,
 }: ModelSelectorProps) {
-  const catalog = HERMES_PROVIDERS.filter(
-    (p) => !availableProviders || availableProviders.includes(p.id),
-  );
-  const activeCatalog =
-    catalog.find((p) => p.id === value.provider) ?? catalog[0];
-  const models = activeCatalog?.models ?? [];
-
-  function setProvider(provider: HermesProviderId) {
-    const nextCatalog = HERMES_PROVIDERS.find((p) => p.id === provider);
-    const defaultModel =
-      nextCatalog?.models.find((m) => m.default)?.id ??
-      nextCatalog?.models[0]?.id ??
-      value.model;
-    onChange({ provider, model: defaultModel });
-  }
+  const selected = encodeModelChoice(value.provider, value.model);
+  const defaultChoice = getDefaultCuratedModel();
+  const safeSelected =
+    decodeModelChoice(selected) ??
+    decodeModelChoice(
+      encodeModelChoice(defaultChoice.provider, defaultChoice.model),
+    )!;
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <label className="sr-only" htmlFor="hermes-provider">
-        LLM provider
-      </label>
-      <select
-        id="hermes-provider"
-        value={value.provider}
-        onChange={(e) => setProvider(e.target.value as HermesProviderId)}
-        className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-xs text-foam outline-none focus:border-teal-bright/50"
-      >
-        {catalog.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.label}
-          </option>
-        ))}
-      </select>
+    <div className={cn("flex items-center gap-2", className)}>
       <label className="sr-only" htmlFor="hermes-model">
         Model
       </label>
       <select
         id="hermes-model"
-        value={value.model}
-        onChange={(e) =>
-          onChange({ provider: value.provider, model: e.target.value })
-        }
-        className="min-w-[10rem] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-xs text-foam outline-none focus:border-teal-bright/50"
+        value={encodeModelChoice(safeSelected.provider, safeSelected.model)}
+        onChange={(e) => {
+          const next = decodeModelChoice(e.target.value);
+          if (next) onChange(next);
+        }}
+        className="max-w-[13rem] sm:max-w-none rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-foam outline-none focus:border-teal-bright/50 truncate"
       >
-        {models.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.label}
-          </option>
-        ))}
+        <optgroup label="NVIDIA">
+          {HERMES_CURATED_MODELS.filter((m) => m.provider === "nvidia").map(
+            (m) => (
+              <option
+                key={m.model}
+                value={encodeModelChoice(m.provider, m.model)}
+              >
+                {m.label.replace(/^NVIDIA · /, "")}
+                {!nvidiaAvailable ? " (add key)" : ""}
+              </option>
+            ),
+          )}
+        </optgroup>
+        <optgroup label="Groq">
+          {HERMES_CURATED_MODELS.filter((m) => m.provider === "groq").map(
+            (m) => (
+              <option
+                key={m.model}
+                value={encodeModelChoice(m.provider, m.model)}
+              >
+                {m.label.replace(/^Groq · /, "")}
+                {!groqAvailable ? " (add key)" : ""}
+              </option>
+            ),
+          )}
+        </optgroup>
       </select>
     </div>
   );

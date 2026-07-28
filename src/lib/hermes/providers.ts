@@ -16,6 +16,67 @@ export interface HermesProviderOption {
 export const HERMES_NVIDIA_BASE_URL =
   "https://integrate.api.nvidia.com/v1";
 
+/** Four models shown in the single Hermes dropdown (2× NVIDIA, 2× Groq). */
+export const HERMES_CURATED_MODELS: Array<{
+  provider: HermesProviderId;
+  model: string;
+  label: string;
+  default?: boolean;
+}> = [
+  {
+    provider: "nvidia",
+    model: "z-ai/glm-5.2",
+    label: "NVIDIA · GLM 5.2",
+    default: true,
+  },
+  {
+    provider: "nvidia",
+    model: "moonshotai/kimi-k2-instruct",
+    label: "NVIDIA · Kimi K2",
+  },
+  {
+    provider: "groq",
+    model: "openai/gpt-oss-120b",
+    label: "Groq · GPT-OSS 120B",
+  },
+  {
+    provider: "groq",
+    model: "llama-3.3-70b-versatile",
+    label: "Groq · Llama 3.3 70B",
+  },
+];
+
+export function encodeModelChoice(
+  provider: HermesProviderId,
+  model: string,
+): string {
+  return `${provider}::${model}`;
+}
+
+export function decodeModelChoice(
+  value: string,
+): { provider: HermesProviderId; model: string } | null {
+  const idx = value.indexOf("::");
+  if (idx === -1) return null;
+  const provider = value.slice(0, idx) as HermesProviderId;
+  const model = value.slice(idx + 2);
+  if (provider !== "groq" && provider !== "nvidia") return null;
+  const match = HERMES_CURATED_MODELS.find(
+    (m) => m.provider === provider && m.model === model,
+  );
+  if (!match) return null;
+  return { provider, model };
+}
+
+export function getDefaultCuratedModel(): {
+  provider: HermesProviderId;
+  model: string;
+} {
+  const def =
+    HERMES_CURATED_MODELS.find((m) => m.default) ?? HERMES_CURATED_MODELS[0]!;
+  return { provider: def.provider, model: def.model };
+}
+
 export const HERMES_PROVIDERS: HermesProviderOption[] = [
   {
     id: "nvidia",
@@ -97,6 +158,13 @@ export function isValidProviderModel(
   provider: HermesProviderId,
   model: string,
 ): boolean {
+  if (
+    HERMES_CURATED_MODELS.some(
+      (m) => m.provider === provider && m.model === model,
+    )
+  ) {
+    return true;
+  }
   return getProviderCatalog(provider).models.some((m) => m.id === model);
 }
 
@@ -110,8 +178,6 @@ export function resolveProviderModel(
   if (modelId && isValidProviderModel(providerId, modelId)) {
     return { provider: providerId, model: modelId };
   }
-  return {
-    provider: providerId,
-    model: getDefaultModelForProvider(providerId),
-  };
+  const curated = getDefaultCuratedModel();
+  return curated;
 }

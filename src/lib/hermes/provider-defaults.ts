@@ -1,5 +1,6 @@
 import { getGroqApiKey, getNvidiaApiKey } from "@/lib/hermes/env";
 import {
+  HERMES_CURATED_MODELS,
   getDefaultModelForProvider,
   type HermesProviderId,
 } from "@/lib/hermes/providers";
@@ -21,5 +22,7 @@ export function getDefaultHermesModel(
       ? process.env.NVIDIA_MODEL?.trim()
       : process.env.GROQ_MODEL?.trim();
   if (envKey) return envKey;
+  const curated = HERMES_CURATED_MODELS.find((m) => m.provider === p);
+  if (curated) return curated.model;
   return getDefaultModelForProvider(p);
 }
