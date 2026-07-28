@@ -30,6 +30,9 @@ describe("GitHub activity feed", () => {
     expect(feed.events.some((e) => e.kind === "pr_merged")).toBe(true);
     expect(feed.events.some((e) => e.kind === "workflow_failure")).toBe(true);
     expect(feed.events.some((e) => e.kind === "workflow_success")).toBe(true);
+    expect(feed.events.some((e) => e.kind === "issue_opened")).toBe(true);
+    expect(feed.events.some((e) => e.kind === "issue_comment")).toBe(true);
+    expect(feed.events.every((e) => e.owner && e.repo)).toBe(true);
   });
 
   it("sorts events newest first", () => {

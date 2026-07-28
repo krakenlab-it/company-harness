@@ -33,4 +33,16 @@ export const ACTIVITY_FRIENDLY: Record<
     label: "Checks cancelled",
     hint: "An automated run was stopped before it finished.",
   },
+  issue_opened: {
+    label: "Issue opened",
+    hint: "A new bug, task, or discussion was filed on GitHub.",
+  },
+  issue_closed: {
+    label: "Issue closed",
+    hint: "An issue was resolved or closed without further action.",
+  },
+  issue_comment: {
+    label: "Comment added",
+    hint: "Someone left feedback on an issue — may need a response or fix.",
+  },
 };

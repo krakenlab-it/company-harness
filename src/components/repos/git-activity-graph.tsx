@@ -3,42 +3,20 @@
 import { formatDistanceToNow } from "date-fns";
 import {
   GitBranch,
-  GitCommit,
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
   Loader2,
   RefreshCw,
-  Workflow,
-  XCircle,
 } from "lucide-react";
 import type {
   GitHubActivityEvent,
   GitHubActivityFeed,
-  GitHubActivityKind,
 } from "@/lib/github/activity-types";
 import { ACTIVITY_FRIENDLY } from "@/lib/github/activity-labels";
+import { ACTIVITY_KIND_META } from "@/lib/github/activity-kind-meta";
 import { Panel } from "@/components/ui/panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HelpTip, SectionHeader } from "@/components/ui/help-tip";
 import { cn } from "@/lib/utils";
-
-const KIND_META: Record<
-  GitHubActivityKind,
-  {
-    icon: typeof GitCommit;
-    tone: "default" | "ok" | "warn" | "danger" | "teal";
-  }
-> = {
-  commit: { icon: GitCommit, tone: "default" },
-  pr_opened: { icon: GitPullRequest, tone: "teal" },
-  pr_closed: { icon: GitPullRequestClosed, tone: "warn" },
-  pr_merged: { icon: GitMerge, tone: "ok" },
-  workflow_success: { icon: Workflow, tone: "ok" },
-  workflow_failure: { icon: XCircle, tone: "danger" },
-  workflow_cancelled: { icon: Workflow, tone: "warn" },
-};
 
 interface GitActivityGraphProps {
   feed: GitHubActivityFeed | null;
@@ -165,7 +143,7 @@ function ActivityRow({
   event: GitHubActivityEvent;
   isLast: boolean;
 }) {
-  const meta = KIND_META[event.kind];
+  const meta = ACTIVITY_KIND_META[event.kind];
   const friendly = ACTIVITY_FRIENDLY[event.kind];
   const Icon = meta.icon;
 

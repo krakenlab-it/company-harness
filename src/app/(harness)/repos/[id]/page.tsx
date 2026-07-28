@@ -5,10 +5,11 @@ import { useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
 import { ErrorPanel } from "@/components/ui/error-panel";
-import { GitActivityGraph } from "@/components/repos/git-activity-graph";
+import { RepoActivityFeed } from "@/components/repos/repo-activity-feed";
 import { RepoOverviewCard } from "@/components/repos/repo-overview-card";
 import { RepoStackPanel } from "@/components/repos/repo-stack-panel";
-import type { GitHubActivityFeed } from "@/lib/github/activity-types";
+import { RepoVisibilityGraph } from "@/components/repos/repo-visibility-graph";
+import type { GitHubActivityEvent, GitHubActivityFeed } from "@/lib/github/activity-types";
 
 export default function RepoDetailPage() {
   const params = useParams<{ id: string }>();
@@ -19,12 +20,16 @@ export default function RepoDetailPage() {
   } | null>(null);
   const [activity, setActivity] = useState<GitHubActivityFeed | null>(null);
   const [githubConnected, setGithubConnected] = useState(false);
+  const [canDelegate, setCanDelegate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [refreshingActivity, setRefreshingActivity] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
+  const [highlightedEventId, setHighlightedEventId] = useState<string | null>(
+    null,
+  );
 
   async function loadActivity(refresh = false) {
     if (refresh) setRefreshingActivity(true);
@@ -49,9 +54,16 @@ export default function RepoDetailPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/repos/${params.id}`);
-      if (!res.ok) throw new Error("Repo not found");
-      setData(await res.json());
+      const [repoRes, sessionRes] = await Promise.all([
+        fetch(`/api/repos/${params.id}`),
+        fetch("/api/session"),
+      ]);
+      if (!repoRes.ok) throw new Error("Repo not found");
+      setData(await repoRes.json());
+      if (sessionRes.ok) {
+        const session = await sessionRes.json();
+        setCanDelegate(Boolean(session.canDelegate));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -77,6 +89,12 @@ export default function RepoDetailPage() {
     } finally {
       setScanning(false);
     }
+  }
+
+  function handleGraphSelect(event: GitHubActivityEvent) {
+    setHighlightedEventId(event.id);
+    const el = document.getElementById(`activity-${event.id}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   if (loading) {
@@ -107,29 +125,51 @@ export default function RepoDetailPage() {
       <Topbar
         mission="Observe"
         title={displayName}
-        description="See what shipped recently, what’s waiting for review, and whether automated checks passed."
+        description="Filter GitHub activity, spot failures quickly, and send work to Cursor with one click."
       />
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 max-w-4xl">
-        <RepoOverviewCard
-          name={data.repo.name}
-          url={data.repo.url}
-          githubConnected={githubConnected}
-          project={data.project}
-        />
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="mx-auto max-w-6xl space-y-5">
+          <RepoOverviewCard
+            name={data.repo.name}
+            url={data.repo.url}
+            githubConnected={githubConnected}
+            project={data.project}
+          />
 
-        <GitActivityGraph
-          feed={activity}
-          loading={activityLoading}
-          error={activityError}
-          onRefresh={() => loadActivity(true)}
-          refreshing={refreshingActivity}
-        />
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px] items-start">
+            <div className="space-y-5 min-w-0">
+              <RepoActivityFeed
+                repoId={params.id}
+                repoUrl={data.repo.url}
+                feed={activity}
+                loading={activityLoading}
+                error={activityError}
+                onRefresh={() => loadActivity(true)}
+                refreshing={refreshingActivity}
+                canDelegate={canDelegate}
+                highlightedEventId={highlightedEventId}
+              />
 
-        <RepoStackPanel
-          stack={data.stack}
-          scanning={scanning}
-          onScan={scanStack}
-        />
+              <RepoStackPanel
+                stack={data.stack}
+                scanning={scanning}
+                onScan={scanStack}
+              />
+            </div>
+
+            <aside className="min-w-0 lg:sticky lg:top-4 lg:self-start">
+              <RepoVisibilityGraph
+                feed={activity}
+                loading={activityLoading}
+                error={activityError}
+                onRefresh={() => loadActivity(true)}
+                refreshing={refreshingActivity}
+                activeEventId={highlightedEventId}
+                onSelectEvent={handleGraphSelect}
+              />
+            </aside>
+          </div>
+        </div>
       </div>
     </>
   );

@@ -55,10 +55,14 @@ export async function fetchGitHubRepoActivity(options: {
   const octokit = createGitHubClient();
   const { owner, repo } = parsed;
 
+  const enrich = (
+    event: Omit<GitHubActivityEvent, "owner" | "repo">,
+  ): GitHubActivityEvent => ({ ...event, owner, repo });
+
   const events: GitHubActivityEvent[] = [];
 
   try {
-    const [commits, pulls, runs] = await Promise.all([
+    const [commits, pulls, runs, issues] = await Promise.all([
       octokit.repos.listCommits({
         owner,
         repo,
@@ -78,24 +82,34 @@ export async function fetchGitHubRepoActivity(options: {
         repo,
         per_page: 12,
       }),
+      octokit.issues.listForRepo({
+        owner,
+        repo,
+        state: "all",
+        sort: "updated",
+        direction: "desc",
+        per_page: 10,
+      }),
     ]);
 
     for (const commit of commits.data) {
       const sha = commit.sha.slice(0, 7);
-      events.push({
-        id: `commit-${commit.sha}`,
-        kind: "commit",
-        title: commit.commit.message.split("\n")[0] ?? "Commit",
-        subtitle: commit.commit.author?.name ?? undefined,
-        actor: commit.author?.login ?? commit.commit.author?.name,
-        sha,
-        branch: defaultBranch,
-        url: commit.html_url,
-        occurredAt:
-          commit.commit.author?.date ??
-          commit.commit.committer?.date ??
-          new Date().toISOString(),
-      });
+      events.push(
+        enrich({
+          id: `commit-${commit.sha}`,
+          kind: "commit",
+          title: commit.commit.message.split("\n")[0] ?? "Commit",
+          subtitle: commit.commit.author?.name ?? undefined,
+          actor: commit.author?.login ?? commit.commit.author?.name,
+          sha,
+          branch: defaultBranch,
+          url: commit.html_url,
+          occurredAt:
+            commit.commit.author?.date ??
+            commit.commit.committer?.date ??
+            new Date().toISOString(),
+        }),
+      );
     }
 
     for (const pr of pulls.data) {
@@ -107,41 +121,98 @@ export async function fetchGitHubRepoActivity(options: {
         pr.created_at ??
         new Date().toISOString();
 
-      events.push({
-        id: `pr-${pr.number}`,
-        kind: prKind(merged, pr.state),
-        title: pr.title,
-        subtitle: merged
-          ? `Merged into ${pr.base.ref}`
-          : pr.state === "closed"
-            ? "Closed without merge"
-            : `Opened · ${pr.head.ref} → ${pr.base.ref}`,
-        actor: pr.user?.login,
-        branch: pr.head.ref,
-        url: pr.html_url,
-        occurredAt,
-      });
+      events.push(
+        enrich({
+          id: `pr-${pr.number}`,
+          kind: prKind(merged, pr.state),
+          title: pr.title,
+          subtitle: merged
+            ? `Merged into ${pr.base.ref}`
+            : pr.state === "closed"
+              ? "Closed without merge"
+              : `Opened · ${pr.head.ref} → ${pr.base.ref}`,
+          actor: pr.user?.login,
+          branch: pr.head.ref,
+          prNumber: pr.number,
+          url: pr.html_url,
+          occurredAt,
+        }),
+      );
+    }
+
+    for (const issue of issues.data) {
+      if (issue.pull_request) continue;
+      const closed = issue.state === "closed";
+      events.push(
+        enrich({
+          id: `issue-${issue.number}`,
+          kind: closed ? "issue_closed" : "issue_opened",
+          title: issue.title,
+          subtitle: closed ? "Closed" : "Open",
+          actor: issue.user?.login,
+          issueNumber: issue.number,
+          url: issue.html_url,
+          occurredAt:
+            issue.updated_at ?? issue.created_at ?? new Date().toISOString(),
+        }),
+      );
+    }
+
+    const commentIssues = issues.data
+      .filter((i) => !i.pull_request)
+      .slice(0, 5);
+    for (const issue of commentIssues) {
+      try {
+        const comments = await octokit.issues.listComments({
+          owner,
+          repo,
+          issue_number: issue.number,
+          per_page: 3,
+        });
+        for (const comment of comments.data.slice(-2)) {
+          events.push(
+            enrich({
+              id: `comment-${comment.id}`,
+              kind: "issue_comment",
+              title: `Comment on #${issue.number}: ${issue.title}`,
+              subtitle: issue.title,
+              actor: comment.user?.login,
+              issueNumber: issue.number,
+              commentPreview: comment.body?.slice(0, 200),
+              url: comment.html_url,
+              occurredAt:
+                comment.updated_at ??
+                comment.created_at ??
+                new Date().toISOString(),
+            }),
+          );
+        }
+      } catch {
+        /* skip comment fetch errors */
+      }
     }
 
     for (const run of runs.data.workflow_runs ?? []) {
       const kind = workflowKind(run.conclusion);
       if (!kind) continue;
 
-      events.push({
-        id: `wf-${run.id}`,
-        kind,
-        title: run.name ?? run.display_title ?? "Workflow run",
-        subtitle:
-          run.conclusion === "success"
-            ? "All jobs succeeded"
-            : run.conclusion === "failure"
-              ? "One or more jobs failed"
-              : "Run cancelled",
-        actor: run.actor?.login ?? "github-actions",
-        branch: run.head_branch ?? undefined,
-        url: run.html_url,
-        occurredAt: run.updated_at ?? run.created_at ?? new Date().toISOString(),
-      });
+      events.push(
+        enrich({
+          id: `wf-${run.id}`,
+          kind,
+          title: run.name ?? run.display_title ?? "Workflow run",
+          subtitle:
+            run.conclusion === "success"
+              ? "All jobs succeeded"
+              : run.conclusion === "failure"
+                ? "One or more jobs failed"
+                : "Run cancelled",
+          actor: run.actor?.login ?? "github-actions",
+          branch: run.head_branch ?? undefined,
+          url: run.html_url,
+          occurredAt: run.updated_at ?? run.created_at ?? new Date().toISOString(),
+        }),
+      );
     }
   } catch (error) {
     console.warn("[github-activity] fetch failed, using demo feed", error);
