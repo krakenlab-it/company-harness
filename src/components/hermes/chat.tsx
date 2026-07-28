@@ -1,23 +1,47 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Send, Wifi, WifiOff } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { ArrowUp, Bot, Loader2, Sparkles, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { CursorJobCard, type TrackedJob } from "@/components/hermes/cursor-job-card";
+import { MarkdownMessage } from "@/components/hermes/markdown-message";
+import { ComposerInput } from "@/components/hermes/composer-input";
+import {
+  HermesModelSelector,
+  loadStoredModelSelection,
+  persistModelSelection,
+  type ModelSelectorValue,
+} from "@/components/hermes/model-selector";
+import { getDefaultCuratedModel } from "@/lib/hermes/providers";
+import { MessageTagStrip } from "@/components/hermes/message-tag-strip";
+import { COMPOSER_TAG_HELP } from "@/lib/hermes/composer-tags";
+import type { HermesComposerTagMeta } from "@/lib/types";
+import type { HermesProviderId } from "@/lib/hermes/providers";
 import { cn } from "@/lib/utils";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  contextType?: string;
+  contextId?: string;
+  composerTags?: HermesComposerTagMeta[];
   createdAt?: string;
 }
 
 interface HermesStatus {
   configured: boolean;
   offline: boolean;
+  hint?: string;
+  defaultProvider?: HermesProviderId;
+  defaultModel?: string;
+  groqAvailable?: boolean;
+  nvidiaAvailable?: boolean;
+  groqModel?: string;
+  providers?: Array<{ id: HermesProviderId; label: string }>;
 }
 
 interface HermesContext {
@@ -26,8 +50,13 @@ interface HermesContext {
   activeAgents: number;
 }
 
+const POLL_MS = 30_000;
+
 export function HermesChat() {
+  const searchParams = useSearchParams();
+  const scopedRepo = searchParams.get("repo");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [trackedJobs, setTrackedJobs] = useState<TrackedJob[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,42 +69,101 @@ export function HermesChat() {
     configured: true,
     offline: false,
   });
+  const [modelSelection, setModelSelection] = useState<ModelSelectorValue>(
+    getDefaultCuratedModel(),
+  );
   const bottomRef = useRef<HTMLDivElement>(null);
+  const modelInitRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
-
-  useEffect(() => {
-    fetch("/api/hermes/chat")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.status) {
-          setStatus({
-            configured: data.status.configured ?? true,
-            offline: data.status.offline ?? false,
-          });
-        }
-        if (data?.messages?.length) {
-          setMessages(data.messages);
-        }
-        if (data?.context) {
-          setContext(data.context);
-        }
-      })
-      .catch(() => {
-        setStatus({ configured: false, offline: true });
+  const applyPayload = useCallback((data: Record<string, unknown>) => {
+    if (data?.status && typeof data.status === "object") {
+      const s = data.status as HermesStatus;
+      setStatus({
+        configured: s.configured ?? true,
+        offline: s.offline ?? false,
+        hint: s.hint,
+        defaultProvider: s.defaultProvider,
+        defaultModel: s.defaultModel,
+        groqAvailable: s.groqAvailable,
+        nvidiaAvailable: s.nvidiaAvailable,
+        groqModel: s.groqModel,
+        providers: s.providers,
       });
+      if (!modelInitRef.current && s.defaultProvider && s.defaultModel) {
+        modelInitRef.current = true;
+        setModelSelection(
+          loadStoredModelSelection({
+            provider: s.defaultProvider,
+            model: s.defaultModel,
+          }),
+        );
+      }
+    }
+    if (Array.isArray(data?.messages)) {
+      setMessages(data.messages as Message[]);
+    }
+    if (Array.isArray(data?.trackedJobs)) {
+      setTrackedJobs(data.trackedJobs as TrackedJob[]);
+    }
+    if (data?.context && typeof data.context === "object") {
+      setContext(data.context as HermesContext);
+    }
   }, []);
 
-  async function handleSend(e: React.FormEvent) {
-    e.preventDefault();
+  const refreshChat = useCallback(async () => {
+    const res = await fetch("/api/hermes/chat");
+    if (!res.ok) return;
+    applyPayload(await res.json());
+  }, [applyPayload]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, sending, scrollToBottom]);
+
+  useEffect(() => {
+    refreshChat().catch(() => {
+      setStatus({ configured: false, offline: true });
+    });
+  }, [refreshChat]);
+
+  useEffect(() => {
+    const hasActiveJobs =
+      trackedJobs.some(
+        (j) => j.status === "running" || j.status === "queued",
+      ) || context.activeAgents > 0;
+
+    if (!hasActiveJobs) return;
+
+    const interval = setInterval(() => {
+      refreshChat().catch(() => {});
+    }, POLL_MS);
+
+    return () => clearInterval(interval);
+  }, [trackedJobs, context.activeAgents, refreshChat]);
+
+  useEffect(() => {
+    persistModelSelection(modelSelection);
+  }, [modelSelection]);
+
+  async function handleSend(e?: React.FormEvent) {
+    e?.preventDefault();
     const text = input.trim();
     if (!text || sending) return;
+
+    const needsNvidia = modelSelection.provider === "nvidia";
+    const needsGroq = modelSelection.provider === "groq";
+    if (needsNvidia && !status.nvidiaAvailable) {
+      setError("Add NVIDIA_API_KEY to .env.local to use NVIDIA models.");
+      return;
+    }
+    if (needsGroq && !status.groqAvailable) {
+      setError("Add GROQ_API_KEY to .env.local to use Groq models.");
+      return;
+    }
 
     const userMsg: Message = {
       id: crypto.randomUUID(),
@@ -93,7 +181,13 @@ export function HermesChat() {
       const res = await fetch("/api/hermes/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, channel: "in-app" }),
+        body: JSON.stringify({
+          message: text,
+          channel: "in-app",
+          repo: scopedRepo ?? undefined,
+          provider: modelSelection.provider,
+          model: modelSelection.model,
+        }),
       });
 
       if (!res.ok) {
@@ -102,23 +196,12 @@ export function HermesChat() {
       }
 
       const data = await res.json();
-      const reply: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: data.reply ?? data.message ?? data.content ?? "No response.",
-        createdAt: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, reply]);
-
-      if (data.status) {
-        setStatus({
-          configured: data.status.configured ?? status.configured,
-          offline: data.status.offline ?? false,
-        });
+      const replyText =
+        data.reply ?? data.message ?? data.content ?? "";
+      if (!replyText.trim() && !Array.isArray(data.messages)) {
+        throw new Error("Hermes returned an empty response — try again");
       }
-      if (data.context) {
-        setContext(data.context);
-      }
+      applyPayload(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
     } finally {
@@ -126,113 +209,230 @@ export function HermesChat() {
     }
   }
 
-  return (
-    <div className="flex h-[calc(100dvh-8rem)] flex-col gap-4 md:h-[calc(100dvh-6rem)]">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="teal">In-app channel</Badge>
-          <Badge variant="default">{context.repos} repos</Badge>
-          <Badge variant="default">{context.openTickets} tickets</Badge>
-          <Badge variant="default">{context.activeAgents} agents</Badge>
-          {status.offline ? (
-            <Badge variant="warn">
-              <WifiOff className="h-3 w-3" aria-hidden />
-              Offline
-            </Badge>
-          ) : status.configured ? (
-            <Badge variant="ok">
-              <Wifi className="h-3 w-3" aria-hidden />
-              Connected
-            </Badge>
-          ) : (
-            <Badge variant="warn">Not configured</Badge>
-          )}
-        </div>
-      </div>
+  const jobsById = new Map(trackedJobs.map((j) => [j.id, j]));
+  const selectedLabel =
+    modelSelection.provider === "nvidia" ? "NVIDIA" : "Groq";
 
-      <Panel padding="none" className="flex flex-1 flex-col overflow-hidden">
+  return (
+    <div className="flex h-[calc(100dvh-7rem)] flex-col gap-3 md:h-[calc(100dvh-5.5rem)]">
+      <header className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+        <div className="flex items-center gap-2 mr-auto min-w-0">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-bright/10 text-teal-bright shrink-0">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foam">Hermes</p>
+            <p className="text-[11px] text-mist truncate">
+              NVIDIA NIM · Groq · composer tags
+            </p>
+          </div>
+        </div>
+        <HermesModelSelector
+          value={modelSelection}
+          onChange={setModelSelection}
+          nvidiaAvailable={status.nvidiaAvailable}
+          groqAvailable={status.groqAvailable}
+        />
+        {scopedRepo && (
+          <Badge variant="teal">Repo: {scopedRepo}</Badge>
+        )}
+        <Badge variant="default">{context.repos} repos</Badge>
+        <Badge variant="default">{context.openTickets} tickets</Badge>
+        <Badge variant="default">{context.activeAgents} agents</Badge>
+        {status.offline ? (
+          <Badge variant="warn" title={status.hint}>
+            Demo mode
+          </Badge>
+        ) : (
+          <Badge variant="ok">{selectedLabel}</Badge>
+        )}
+      </header>
+      {status.offline && status.hint && (
+        <p className="text-xs text-mist -mt-1 px-1">{status.hint}</p>
+      )}
+
+      <Panel
+        padding="none"
+        className="flex flex-1 flex-col overflow-hidden border-[var(--border)] bg-[var(--canvas)]"
+      >
         <div
-          className="flex-1 overflow-y-auto p-4 space-y-4"
+          className="flex-1 overflow-y-auto px-3 py-6 sm:px-6"
           role="log"
           aria-live="polite"
           aria-label="Chat messages"
         >
           {messages.length === 0 && (
-            <div className="flex h-full items-center justify-center text-center">
-              <div className="space-y-2 animate-fade-up">
-                <p className="font-display text-lg font-semibold text-foam">
-                  Hermes
-                </p>
-                <p className="max-w-xs text-sm text-mist">
-                  Your operations assistant. Ask about projects, tickets, or
-                  team workflows.
-                </p>
+            <div className="flex h-full min-h-[240px] flex-col items-center justify-center text-center px-4">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-bright/10">
+                <Bot className="h-7 w-7 text-teal-bright" />
+              </div>
+              <p className="font-display text-xl font-semibold tracking-tight text-foam mb-2">
+                How can I help?
+              </p>
+              <p className="max-w-lg text-sm text-mist leading-relaxed">
+                {scopedRepo
+                  ? `Scoped to **${scopedRepo}**. Ask about stack, tickets, spend — or \`@cursor\` to delegate (admin/lead).`
+                  : "Ask about projects, spend, tickets — or use `@cursor` with a repo scope to delegate to Cursor (admin/lead)."}
+              </p>
+              <div className="mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2">
+                {(scopedRepo
+                  ? [
+                      `Scan context for ${scopedRepo}`,
+                      `@cursor Add rate limiting to auth`,
+                      "Open tickets on this repo",
+                      "Summarize open PRs and CI status",
+                    ]
+                  : [
+                      "Summarize open tickets",
+                      "@cursor feature: improve error messages",
+                      "What are we spending this month?",
+                      "Create test tickets for all repos",
+                    ]
+                ).map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => setInput(suggestion)}
+                    className="rounded-xl border border-[var(--border)] px-3 py-2.5 text-left text-xs text-mist hover:border-teal-bright/30 hover:bg-[var(--surface-muted)] hover:text-foam transition-colors"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={cn(
-                "flex animate-fade-up",
-                msg.role === "user" ? "justify-end" : "justify-start",
-              )}
-            >
-              <div
-                className={cn(
-                  "max-w-[85%] rounded-lg px-3.5 py-2.5 text-sm leading-relaxed sm:max-w-[70%]",
-                  msg.role === "user"
-                    ? "bg-teal/30 text-foam border border-teal/20"
-                    : "bg-[rgba(122,154,171,0.08)] text-foam border border-[rgba(122,154,171,0.12)]",
-                )}
-              >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+          <div className="mx-auto max-w-3xl space-y-6">
+            {messages.map((msg) => {
+              const linkedJob =
+                msg.contextType === "agent_job" && msg.contextId
+                  ? jobsById.get(msg.contextId)
+                  : undefined;
+              const isUser = msg.role === "user";
+
+              return (
+                <div
+                  key={msg.id}
+                  className={cn(
+                    "flex gap-3",
+                    isUser ? "flex-row-reverse" : "flex-row",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                      isUser
+                        ? "bg-[var(--surface-muted)] text-foam"
+                        : "bg-teal-bright/15 text-teal-bright",
+                    )}
+                    aria-hidden
+                  >
+                    {isUser ? (
+                      <User className="h-4 w-4" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div
+                    className={cn(
+                      "min-w-0 max-w-[85%] sm:max-w-[78%]",
+                      isUser ? "message-user px-4 py-3" : "message-assistant py-1",
+                    )}
+                  >
+                    {isUser ? (
+                      <>
+                        <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                        <MessageTagStrip tags={msg.composerTags} />
+                      </>
+                    ) : (
+                      <MarkdownMessage content={msg.content} />
+                    )}
+                    {linkedJob && <CursorJobCard job={linkedJob} compact />}
+                    {msg.createdAt && (
+                      <time
+                        className="mt-2 block text-[10px] text-sand"
+                        dateTime={msg.createdAt}
+                      >
+                        {new Date(msg.createdAt).toLocaleString()}
+                      </time>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {sending && (
+              <div className="flex gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-bright/15 text-teal-bright">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] px-4 py-3 text-sm text-mist">
+                  Hermes is working — multi-step tasks may take up to a minute…
+                </div>
               </div>
-            </div>
-          ))}
+            )}
+          </div>
           <div ref={bottomRef} />
         </div>
 
         {error && (
-          <div className="border-t border-danger/20 bg-danger/5 px-4 py-2 text-sm text-danger">
+          <div className="border-t border-[var(--border-subtle)] bg-red-500/5 px-4 py-2 text-sm text-danger">
             {error}
           </div>
         )}
 
         <form
           onSubmit={handleSend}
-          className="border-t border-[rgba(122,154,171,0.12)] p-4"
+          className="border-t border-[var(--border)] p-4 bg-[var(--surface)]"
         >
-          <div className="flex gap-2">
-            <Textarea
+          <div className="mx-auto max-w-3xl prompt-composer flex items-end gap-2 p-2 pl-4">
+            <ComposerInput
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Message Hermes…"
-              rows={2}
-              className="min-h-[2.75rem] flex-1 resize-none"
-              disabled={sending || status.offline}
+              onChange={setInput}
+              disabled={sending}
+              placeholder="Message Hermes — @cursor · @repo org/name · /ticket · /pr"
+              aria-label="Message input"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  handleSend(e);
+                  handleSend();
                 }
               }}
-              aria-label="Message input"
             />
             <Button
               type="submit"
-              disabled={!input.trim() || sending || status.offline}
-              className="self-end"
+              size="icon"
+              disabled={!input.trim() || sending}
+              className="rounded-full h-9 w-9 shrink-0 mb-0.5"
               aria-label="Send message"
             >
               {sending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Send className="h-4 w-4" />
+                <ArrowUp className="h-4 w-4" />
               )}
             </Button>
           </div>
+          <div className="mx-auto max-w-3xl mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 px-2">
+            {COMPOSER_TAG_HELP.map((item) => (
+              <button
+                key={item.token}
+                type="button"
+                onClick={() =>
+                  setInput((prev) =>
+                    prev ? `${prev} ${item.token}` : item.token,
+                  )
+                }
+                className="text-[10px] text-sand hover:text-teal-bright transition-colors"
+                title={item.desc}
+              >
+                <span className="font-mono text-foam/80">{item.token}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mx-auto max-w-3xl mt-1 text-[10px] text-sand text-center">
+            Enter to send · Shift+Enter newline · tags highlight like Cursor composer
+          </p>
         </form>
       </Panel>
     </div>

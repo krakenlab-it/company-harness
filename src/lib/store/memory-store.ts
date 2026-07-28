@@ -641,6 +641,17 @@ class MemoryStore {
   listDelegationAudits(limit = 50): DelegationAudit[] {
     return this.list(this.state.delegationAudits).slice(0, limit);
   }
+
+  updateDelegationAudit(
+    id: string,
+    patch: Partial<Pick<DelegationAudit, "status" | "prUrl">>,
+  ): DelegationAudit | undefined {
+    return this.update<DelegationAudit>(
+      this.state.delegationAudits,
+      id,
+      patch,
+    );
+  }
 }
 
 export const store = new MemoryStore();

@@ -5,27 +5,29 @@ export function DenseStat({
   value,
   meta,
   className,
+  alert,
 }: {
   label: string;
   value: string | number;
   meta?: string;
   className?: string;
+  alert?: "ok" | "warn" | "danger";
 }) {
   return (
-    <div
-      className={cn(
-        "flex items-baseline gap-2 border border-[rgba(122,154,171,0.15)] rounded-md px-3 py-2 bg-ocean-subtle/50",
-        className,
-      )}
-    >
-      <span className="text-[11px] uppercase tracking-wide text-mist shrink-0">
-        {label}
-      </span>
-      <span className="font-display font-semibold text-foam text-sm tabular-nums">
+    <div className={cn("metric-tile", className)}>
+      <div className="metric-tile-label">{label}</div>
+      <div
+        className={cn(
+          "metric-tile-value",
+          alert === "warn" && "text-warn",
+          alert === "danger" && "text-danger",
+          alert === "ok" && "text-ok",
+        )}
+      >
         {value}
-      </span>
+      </div>
       {meta && (
-        <span className="text-[10px] text-mist ml-auto truncate">{meta}</span>
+        <div className="text-[10px] text-mist mt-1 font-mono truncate">{meta}</div>
       )}
     </div>
   );

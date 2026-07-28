@@ -109,6 +109,15 @@ export const getGuidelinesSchema = z.object({
     .describe("Optional section ID (framework, database, ai, infra, etc.)"),
 });
 
+export const createTicketsForReposSchema = z.object({
+  title: z.string().describe("Ticket title applied to each repo/project"),
+  description: z.string().describe("Ticket description"),
+  priority: z
+    .enum(["low", "medium", "high", "critical"])
+    .default("medium"),
+  labels: z.array(z.string()).optional(),
+});
+
 export const getTeamBudgetSchema = z.object({
   category: z.string().optional().describe("Filter by budget category"),
 });
@@ -216,6 +225,49 @@ export function createHermesTools(options?: { memberId?: string }) {
           summary: `Created ticket: ${ticket.title}`,
         });
         return ticket;
+      },
+    }),
+    create_tickets_for_repos: tool({
+      description:
+        "Create the same ticket on every visible repo/project (e.g. add tests to all repos). Prefer this for multi-repo work.",
+      inputSchema: createTicketsForReposSchema,
+      execute: async (input) => {
+        const repos = getVisibleRepos(memberId);
+        const created: Array<{ repo: string; ticket: ReturnType<typeof store.createTicket> }> = [];
+        const skipped: string[] = [];
+
+        for (const repo of repos) {
+          const project = store.listProjects().find((p) => {
+            if (!p.repoUrl) return false;
+            const a = p.repoUrl.replace(/\.git$/, "").replace(/\/$/, "").toLowerCase();
+            const b = repo.url.replace(/\.git$/, "").replace(/\/$/, "").toLowerCase();
+            return a === b || a.endsWith(`/${repo.name.toLowerCase()}`);
+          });
+
+          if (!project) {
+            skipped.push(repo.name);
+            continue;
+          }
+
+          const ticket = store.createTicket({
+            projectId: project.id,
+            title: input.title,
+            description: input.description,
+            status: "todo",
+            priority: input.priority,
+            labels: input.labels ?? ["hermes", "multi-repo"],
+          });
+          store.addActivity({
+            projectId: project.id,
+            entityType: "ticket",
+            entityId: ticket.id,
+            action: "created",
+            summary: `Hermes created ticket on ${repo.name}: ${ticket.title}`,
+          });
+          created.push({ repo: repo.name, ticket });
+        }
+
+        return { created, skipped, count: created.length };
       },
     }),
     update_ticket: tool({

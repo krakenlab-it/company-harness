@@ -33,7 +33,7 @@ export function Progress({
       )}
       <div
         className={cn(
-          "w-full overflow-hidden rounded-full bg-[rgba(122,154,171,0.12)]",
+          "w-full overflow-hidden rounded-full bg-[var(--surface-muted)]",
           size === "sm" ? "h-1.5" : "h-2",
         )}
         role="progressbar"
@@ -43,7 +43,7 @@ export function Progress({
         aria-label={label}
       >
         <div
-          className="h-full rounded-full bg-gradient-to-r from-teal to-teal-bright transition-all duration-500 ease-out"
+          className="h-full rounded-full bg-foam transition-all duration-500 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>

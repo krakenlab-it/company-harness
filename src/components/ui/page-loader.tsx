@@ -7,7 +7,7 @@ export function PageLoader({ label = "Loading…" }: { label?: string }) {
       role="status"
       aria-live="polite"
     >
-      <Loader2 className="h-5 w-5 animate-spin mr-2 text-teal-bright" aria-hidden />
+      <Loader2 className="h-5 w-5 animate-spin mr-2 text-mist" aria-hidden />
       <span className="text-sm">{label}</span>
     </div>
   );

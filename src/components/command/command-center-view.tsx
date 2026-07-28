@@ -74,8 +74,9 @@ function CommandCenterContent() {
   return (
     <>
       <Topbar
+        mission="01 · Observe"
         title="Command Center"
-        description="Multi-repo visibility — stack, tickets, agents, and spend."
+        description="Entity-level telemetry across repos, stack, tickets, agents, and spend."
         actions={
           <div className="flex items-center gap-2">
             <Suspense fallback={null}>
@@ -87,77 +88,93 @@ function CommandCenterContent() {
               className="btn btn-ghost btn-sm"
               aria-label="Refresh command center"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-3.5 w-3.5" />
             </button>
           </div>
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
         {loading && <PageLoader />}
         {error && <ErrorPanel message={error} />}
 
         {data && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-              <DenseStat label="Repos" value={data.stats.repos} />
-              <DenseStat label="Open tickets" value={data.stats.openTickets} />
-              <DenseStat label="Agents" value={data.stats.activeAgents} />
-              <DenseStat label="Spend" value={formatUsd(data.stats.spendUsd)} />
+              <DenseStat label="Entities" value={data.stats.repos} />
               <DenseStat
-                label="Stack"
+                label="Open tickets"
+                value={data.stats.openTickets}
+                alert={data.stats.openTickets > 10 ? "warn" : undefined}
+              />
+              <DenseStat
+                label="Active agents"
+                value={data.stats.activeAgents}
+                alert={data.stats.activeAgents > 0 ? "ok" : undefined}
+              />
+              <DenseStat label="Spend MTD" value={formatUsd(data.stats.spendUsd)} />
+              <DenseStat
+                label="Stack health"
                 value={`${Math.round(data.stats.stackHealthPct)}%`}
+                alert={
+                  data.stats.stackHealthPct < 80
+                    ? "warn"
+                    : data.stats.stackHealthPct >= 90
+                      ? "ok"
+                      : undefined
+                }
               />
             </div>
 
             <ConnectorStrip connectors={data.connectors} />
 
             <Panel className="overflow-x-auto p-0">
-              <table className="w-full text-xs">
+              <table className="data-table w-full">
                 <thead>
-                  <tr className="border-b border-[rgba(122,154,171,0.15)] text-mist uppercase tracking-wide">
-                    <th className="text-left p-2 font-medium">Repo</th>
-                    <th className="text-left p-2 font-medium">Stack</th>
-                    <th className="text-right p-2 font-medium">Tickets</th>
-                    <th className="text-right p-2 font-medium">Agents</th>
-                    <th className="text-right p-2 font-medium">Spend</th>
-                    <th className="text-left p-2 font-medium">Health</th>
+                  <tr className="border-b border-[var(--border)]">
+                    <th className="text-left p-2 pl-3">Entity</th>
+                    <th className="text-left p-2">Stack</th>
+                    <th className="text-right p-2">TKT</th>
+                    <th className="text-right p-2">AGT</th>
+                    <th className="text-right p-2">Spend</th>
+                    <th className="text-left p-2">Status</th>
+                    <th className="text-right p-2 pr-3">Loop</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.rows.map((row) => (
                     <tr
                       key={row.repo.id}
-                      className="border-b border-[rgba(122,154,171,0.08)] hover:bg-[rgba(122,154,171,0.04)]"
+                      className="border-b border-[var(--border-subtle)]"
                     >
-                      <td className="p-2">
+                      <td className="p-2 pl-3">
                         <Link
                           href={`/repos/${row.repo.id}`}
-                          className="text-teal-bright hover:underline font-medium"
+                          className="text-foam font-medium hover:underline font-mono text-[11px]"
                         >
                           {row.repo.name}
                         </Link>
                         {row.project && (
-                          <span className="block text-[10px] text-mist truncate">
+                          <span className="block text-[10px] text-mist truncate mt-0.5">
                             {row.project.name}
                           </span>
                         )}
                       </td>
-                      <td className="p-2 text-mist tabular-nums">
-                        {row.stackCount} deps
+                      <td className="p-2 text-mist font-mono text-[11px]">
+                        {row.stackCount}
                         {row.stackHealthPct != null && (
                           <span className="text-foam ml-1">
-                            ({row.stackHealthPct}%)
+                            · {row.stackHealthPct}%
                           </span>
                         )}
                       </td>
-                      <td className="p-2 text-right tabular-nums text-foam">
+                      <td className="p-2 text-right font-mono text-[11px] text-foam">
                         {row.openTickets}
                       </td>
-                      <td className="p-2 text-right tabular-nums text-foam">
+                      <td className="p-2 text-right font-mono text-[11px] text-foam">
                         {row.activeAgents || "—"}
                       </td>
-                      <td className="p-2 text-right tabular-nums text-foam">
+                      <td className="p-2 text-right font-mono text-[11px] text-foam">
                         {formatUsd(row.spendUsd)}
                       </td>
                       <td className="p-2">
@@ -173,45 +190,88 @@ function CommandCenterContent() {
                           {row.health}
                         </Badge>
                       </td>
+                      <td className="p-2 pr-3 text-right whitespace-nowrap">
+                        <Link
+                          href={`/hermes?repo=${encodeURIComponent(row.repo.name)}`}
+                          className="action-link mr-2"
+                        >
+                          Intel
+                        </Link>
+                        {data.canDelegate && (
+                          <Link
+                            href={`/agents?repo=${encodeURIComponent(row.repo.url)}`}
+                            className="action-link"
+                          >
+                            Act
+                          </Link>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </Panel>
 
-            <div className="grid lg:grid-cols-2 gap-4">
-              <Panel className="p-3">
-                <h2 className="text-xs uppercase tracking-wide text-mist mb-2">
-                  Active agent jobs
-                </h2>
-                <ul className="space-y-1 text-xs">
-                  {data.agentJobs.slice(0, 6).map((j) => (
-                    <li key={j.id} className="flex justify-between gap-2">
-                      <span className="truncate text-foam">{j.title}</span>
-                      <span className="text-mist shrink-0">{j.status}</span>
+            <div className="grid lg:grid-cols-2 gap-3">
+              <Panel className="p-0 overflow-hidden">
+                <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--surface)]">
+                  <h2 className="text-[10px] font-medium uppercase tracking-wider text-mist">
+                    Mission queue
+                  </h2>
+                </div>
+                <ul className="px-3 py-1 max-h-48 overflow-y-auto">
+                  {data.agentJobs.slice(0, 8).map((j) => (
+                    <li key={j.id} className="audit-line">
+                      <span className="font-mono text-sand uppercase shrink-0 w-16">
+                        {j.status}
+                      </span>
+                      <span className="truncate text-foam flex-1">{j.title}</span>
+                      {j.repo && (
+                        <span className="font-mono text-sand shrink-0 hidden sm:inline">
+                          {j.repo.split("/").pop()}
+                        </span>
+                      )}
                     </li>
                   ))}
                   {data.agentJobs.length === 0 && (
-                    <li className="text-mist">No agent jobs</li>
+                    <li className="py-3 text-mist text-xs">No active missions</li>
                   )}
                 </ul>
                 {data.canDelegate && (
-                  <Link href="/agents" className="text-xs text-teal-bright mt-2 inline-block hover:underline">
-                    Delegate via Agents →
-                  </Link>
+                  <div className="px-3 py-2 border-t border-[var(--border-subtle)]">
+                    <Link href="/agents" className="action-link">
+                      Open Act panel →
+                    </Link>
+                  </div>
                 )}
               </Panel>
-              <Panel className="p-3">
-                <h2 className="text-xs uppercase tracking-wide text-mist mb-2">
-                  Recent activity
-                </h2>
-                <ul className="space-y-1 text-xs text-mist">
+
+              <Panel className="p-0 overflow-hidden">
+                <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--surface)]">
+                  <h2 className="text-[10px] font-medium uppercase tracking-wider text-mist">
+                    Audit trail
+                  </h2>
+                </div>
+                <ul className="px-3 py-1 max-h-48 overflow-y-auto">
                   {data.recentActivity.map((a, i) => (
-                    <li key={i} className="truncate">
-                      {a.summary}
+                    <li key={i} className="audit-line">
+                      <time className="shrink-0">
+                        {a.createdAt
+                          ? new Date(a.createdAt).toISOString().slice(11, 16)
+                          : "—"}
+                      </time>
+                      <span className="truncate text-mist">{a.summary}</span>
                     </li>
                   ))}
+                  {data.recentActivity.length === 0 && (
+                    <li className="py-3 text-mist text-xs">No recent events</li>
+                  )}
                 </ul>
+                <div className="px-3 py-2 border-t border-[var(--border-subtle)]">
+                  <Link href="/work?tab=tickets" className="action-link">
+                    Full audit log →
+                  </Link>
+                </div>
               </Panel>
             </div>
           </>

@@ -1,11 +1,26 @@
-import { createGroq } from "@ai-sdk/groq";
-import { generateText } from "ai";
+import { generateText, stepCountIs } from "ai";
 import { store } from "@/lib/store/memory-store";
 import { formatUsd } from "@/lib/utils";
 import { HERMES_SYSTEM_PROMPT } from "@/lib/hermes/system-prompt";
 import { createHermesTools } from "@/lib/hermes/tools";
+import { getHermesMaxToolSteps } from "@/lib/hermes/config";
+import { formatHermesReply } from "@/lib/hermes/format-result";
 import { getVisibleRepos } from "@/lib/auth/permissions";
 import { DEMO_MEMBER_ID } from "@/lib/auth/config";
+import {
+  createHermesLanguageModel,
+  getNvidiaProviderOptions,
+  isProviderConfigured,
+} from "@/lib/hermes/create-model";
+import {
+  resolveProviderModel,
+  type HermesProviderId,
+} from "@/lib/hermes/providers";
+import {
+  getDefaultHermesModel,
+  getDefaultHermesProvider,
+} from "@/lib/hermes/provider-defaults";
+import type { HermesComposerTagMeta } from "@/lib/types";
 
 export interface HermesMessageInput {
   role: "user" | "assistant" | "system";
@@ -22,16 +37,22 @@ export interface RunHermesOptions {
   messages: HermesMessageInput[];
   context?: HermesContext;
   memberId?: string;
+  provider?: HermesProviderId;
+  model?: string;
+  composerTags?: HermesComposerTagMeta[];
 }
 
 export interface RunHermesResult {
   text: string;
   toolResults?: unknown[];
+  steps?: number;
   offline?: boolean;
+  provider?: HermesProviderId;
+  model?: string;
 }
 
 export function isHermesConfigured(): boolean {
-  return Boolean(process.env.GROQ_API_KEY);
+  return isProviderConfigured("groq") || isProviderConfigured("nvidia");
 }
 
 export function buildHarnessContext(memberId?: string): string {
@@ -72,7 +93,7 @@ export function buildHarnessContext(memberId?: string): string {
     `Active agent jobs: ${snapshot.agents.filter((a) => a.status === "running" || a.status === "queued").length}`,
     `Visible repos (${visibleRepos.length}): ${visibleRepos.map((r) => r.name).join(", ") || "none"}`,
     "",
-    "Note: Hermes cannot delegate Cursor agents. Admins delegate via the Agents page.",
+    "Note: Admins/leads can delegate Cursor agents with `@cursor <prompt>` in Hermes or via the Agents page.",
   ];
 
   return lines.join("\n");
@@ -106,7 +127,7 @@ function buildOfflineResponse(
           "none"
         }.`,
         "",
-        "_Running in offline demo mode — set GROQ_API_KEY for full Hermes capabilities._",
+        "_Running in offline demo mode — set NVIDIA_API_KEY and/or GROQ_API_KEY for full Hermes capabilities._",
       ].join("\n");
     }
   }
@@ -134,7 +155,7 @@ function buildOfflineResponse(
         (c) => `- ${c.name}: ${formatUsd(c.actualSpendUsd)}`,
       ),
       "",
-      "_Running in offline demo mode — set GROQ_API_KEY for full Hermes capabilities._",
+      "_Running in offline demo mode — set NVIDIA_API_KEY and/or GROQ_API_KEY for full Hermes capabilities._",
     ].join("\n");
   }
 
@@ -156,7 +177,7 @@ function buildOfflineResponse(
         return `- ${d.title} (${contact?.company ?? "unknown"}): ${formatUsd(d.valueUsd)} @ ${d.probability}% — ${d.stage}`;
       }),
       "",
-      "_Running in offline demo mode — set GROQ_API_KEY for full Hermes capabilities._",
+      "_Running in offline demo mode — set NVIDIA_API_KEY and/or GROQ_API_KEY for full Hermes capabilities._",
     ].join("\n");
   }
 
@@ -177,7 +198,7 @@ function buildOfflineResponse(
         (t) => `- [${t.status}] ${t.title} (${t.priority})`,
       ),
       "",
-      "_Running in offline demo mode — set GROQ_API_KEY for full Hermes capabilities._",
+      "_Running in offline demo mode — set NVIDIA_API_KEY and/or GROQ_API_KEY for full Hermes capabilities._",
     ].join("\n");
   }
 
@@ -191,7 +212,7 @@ function buildOfflineResponse(
       "",
       "Ask me about a specific area — projects, costs, CRM, tickets, or agent delegation.",
       "",
-      "_Running in offline demo mode — set GROQ_API_KEY for full Hermes capabilities._",
+      "_Running in offline demo mode — set NVIDIA_API_KEY and/or GROQ_API_KEY for full Hermes capabilities._",
     ].join("\n");
   }
 
@@ -201,7 +222,7 @@ function buildOfflineResponse(
     `I can see ${snapshot.projects.length} projects, ${snapshot.tickets.length} tickets, and ${snapshot.contacts.length} CRM contacts.`,
     "Try asking about project status, cloud spend, CRM pipeline, or open tickets.",
     "",
-    "_Running in offline demo mode — set GROQ_API_KEY for full Hermes capabilities._",
+    "_Running in offline demo mode — set NVIDIA_API_KEY and/or GROQ_API_KEY for full Hermes capabilities._",
   ].join("\n");
 }
 
@@ -211,6 +232,11 @@ export async function runHermes(
   const { messages, context } = options;
   const lastUserMessage = messages.filter((m) => m.role === "user").pop();
 
+  const resolved = resolveProviderModel(
+    options.provider ?? getDefaultHermesProvider(),
+    options.model ?? getDefaultHermesModel(options.provider),
+  );
+
   if (lastUserMessage) {
     store.addHermesMessage({
       channel: "in_app",
@@ -218,10 +244,11 @@ export async function runHermes(
       content: lastUserMessage.content,
       contextType: context?.projectId ? "project" : undefined,
       contextId: context?.projectId,
+      composerTags: options.composerTags,
     });
   }
 
-  if (!isHermesConfigured()) {
+  if (!isProviderConfigured(resolved.provider)) {
     const text = buildOfflineResponse(messages, context);
     store.addHermesMessage({
       channel: "in_app",
@@ -231,12 +258,16 @@ export async function runHermes(
     return { text, offline: true };
   }
 
-  const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
   const tools = createHermesTools({ memberId: options.memberId });
   const harnessContext = buildHarnessContext(options.memberId);
+  const model = createHermesLanguageModel(resolved.provider, resolved.model);
+  const nvidiaOptions =
+    resolved.provider === "nvidia"
+      ? getNvidiaProviderOptions(resolved.model)
+      : undefined;
 
   const result = await generateText({
-    model: groq("llama-3.3-70b-versatile"),
+    model,
     system: `${HERMES_SYSTEM_PROMPT}\n\n${harnessContext}`,
     messages: messages.map((m) => ({
       role: m.role,
@@ -244,17 +275,29 @@ export async function runHermes(
     })),
     tools,
     maxRetries: 2,
+    stopWhen: stepCountIs(getHermesMaxToolSteps()),
+    ...(nvidiaOptions ? { providerOptions: nvidiaOptions } : {}),
+    onStepFinish: ({ stepNumber, toolCalls, finishReason }) => {
+      console.info(
+        `[hermes] step ${stepNumber} provider=${resolved.provider} model=${resolved.model} finish=${finishReason} tools=${toolCalls?.length ?? 0}`,
+      );
+    },
   });
+
+  const text = formatHermesReply(result);
 
   store.addHermesMessage({
     channel: "in_app",
     role: "assistant",
-    content: result.text,
+    content: text,
   });
 
   return {
-    text: result.text,
+    text,
     toolResults: result.toolResults,
+    steps: result.steps.length,
     offline: false,
+    provider: resolved.provider,
+    model: resolved.model,
   };
 }

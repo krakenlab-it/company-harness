@@ -214,6 +214,12 @@ export type HermesChannel = "in_app" | "webhook";
 
 export type HermesRole = "user" | "assistant" | "system";
 
+export interface HermesComposerTagMeta {
+  kind: "cursor" | "repo" | "ticket" | "pr" | "project";
+  value: string;
+  label: string;
+}
+
 export interface HermesMessage {
   id: string;
   channel: HermesChannel;
@@ -221,6 +227,7 @@ export interface HermesMessage {
   content: string;
   contextType?: string;
   contextId?: string;
+  composerTags?: HermesComposerTagMeta[];
   createdAt: string;
 }
 

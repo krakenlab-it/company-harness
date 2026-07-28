@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Bot, ExternalLink, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,8 @@ const statusVariant: Record<
 };
 
 export function AgentConsole() {
+  const searchParams = useSearchParams();
+  const repoParam = searchParams.get("repo") ?? "";
   const [jobs, setJobs] = useState<AgentJob[]>([]);
   const [repos, setRepos] = useState<Array<{ name: string; url: string }>>([]);
   const [canDelegate, setCanDelegate] = useState(false);
@@ -73,8 +76,15 @@ export function AgentConsole() {
           }),
         );
         setRepos(list);
-        if (!form.repo && list[0]) {
-          setForm((f) => ({ ...f, repo: list[0].url }));
+        const match =
+          list.find(
+            (r: { name: string; url: string }) =>
+              r.url === repoParam ||
+              r.name === repoParam ||
+              r.url.includes(repoParam),
+          ) ?? list[0];
+        if (match) {
+          setForm((f) => ({ ...f, repo: match.url }));
         }
       }
     } catch (err) {
@@ -87,7 +97,7 @@ export function AgentConsole() {
   useEffect(() => {
     loadJobs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [repoParam]);
 
   async function handleDelegate(e: React.FormEvent) {
     e.preventDefault();
@@ -121,7 +131,7 @@ export function AgentConsole() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-teal-bright" />
+        <Loader2 className="h-6 w-6 animate-spin text-mist" />
       </div>
     );
   }
@@ -233,9 +243,9 @@ export function AgentConsole() {
         />
       ) : (
         <Panel className="overflow-x-auto p-0">
-          <table className="w-full text-xs">
+          <table className="data-table w-full">
             <thead>
-              <tr className="border-b border-[rgba(122,154,171,0.15)] text-mist uppercase tracking-wide">
+              <tr className="border-b border-[var(--border)]">
                 <th className="text-left p-2 font-medium">Title</th>
                 <th className="text-left p-2 font-medium">Type</th>
                 <th className="text-left p-2 font-medium">Repo</th>
@@ -249,7 +259,7 @@ export function AgentConsole() {
               {jobs.map((job) => (
                 <tr
                   key={job.id}
-                  className="border-b border-[rgba(122,154,171,0.08)] hover:bg-[rgba(122,154,171,0.04)]"
+                  className="border-b border-[var(--border-subtle)]"
                 >
                   <td className="p-2 text-foam font-medium max-w-[200px] truncate">
                     {job.title}
@@ -277,7 +287,7 @@ export function AgentConsole() {
                         href={job.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-teal-bright hover:underline inline-flex items-center gap-1"
+                        className="action-link inline-flex items-center gap-1"
                       >
                         <ExternalLink className="h-3 w-3" />
                         Link
