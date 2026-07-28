@@ -7,8 +7,17 @@ export default function HarnessLayout({
 }) {
   return (
     <div className="flex min-h-dvh flex-col md:flex-row bg-ocean">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-2 focus:bg-teal focus:text-foam"
+      >
+        Skip to main content
+      </a>
       <Sidebar />
-      <main className="flex flex-1 flex-col min-w-0 overflow-hidden">
+      <main
+        id="main-content"
+        className="flex flex-1 flex-col min-w-0 overflow-hidden"
+      >
         {children}
       </main>
     </div>

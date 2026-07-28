@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, AuthError } from "@/lib/auth";
 import { getCostRollup } from "@/lib/stack/analyzer";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
@@ -20,6 +21,7 @@ function toApiCost(cost: ProviderCost) {
 
 export async function GET() {
   try {
+    await requireAuth();
     const costs = store.listCosts().map(toApiCost);
     const rollup = getCostRollup();
 
@@ -28,13 +30,17 @@ export async function GET() {
       providers: costs,
       rollup,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to list costs");
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    await requireAuth();
     const body = await parseJsonBody<{
       provider?: string;
       name?: string;
@@ -65,6 +71,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    await requireAuth();
     const body = await parseJsonBody<{
       id?: string;
       provider?: string;

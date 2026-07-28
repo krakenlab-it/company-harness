@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, requireRole, AuthError } from "@/lib/auth";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
 import type { SprintStatus } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
   try {
+    await requireAuth();
     const projectId = request.nextUrl.searchParams.get("projectId") ?? undefined;
     const sprints = store.listSprints(projectId);
     return NextResponse.json({ sprints });
@@ -15,6 +17,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await requireAuth();
     const body = await parseJsonBody<{
       projectId?: string;
       name?: string;

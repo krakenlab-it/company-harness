@@ -1,4 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import {
+  requireAuth,
+  requireRole,
+  requireRepoAccess,
+  memberCanDelegate,
+  AuthError,
+} from "@/lib/auth";
+import { blockHermesDelegation } from "@/lib/auth/api";
 import { delegateToCursor } from "@/lib/cursor/client";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
@@ -9,23 +17,35 @@ function mapJob(job: ReturnType<typeof store.getAgentJob>) {
   return {
     ...job,
     url: job.prUrl,
+    actor: job.actorId ? store.getMember(job.actorId) : undefined,
   };
 }
 
 export async function GET() {
   try {
-    const agents = store.listAgentJobs().map((job) => ({
-      ...job,
-      url: job.prUrl,
-    }));
-    return NextResponse.json({ agents, jobs: agents });
-  } catch {
+    const session = await requireAuth();
+    const agents = store.listAgentJobs().map((job) => mapJob(job));
+    const audits = store.listDelegationAudits(20);
+    return NextResponse.json({
+      agents,
+      jobs: agents,
+      audits,
+      canDelegate: memberCanDelegate(session) && session.role !== "viewer",
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to list agent jobs");
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
+    blockHermesDelegation(request);
+    const session = await requireAuth();
+    requireRole(session, ["admin", "lead"]);
+
     const body = await parseJsonBody<{
       type?: string;
       title?: string;
@@ -39,6 +59,11 @@ export async function POST(request: NextRequest) {
     if (!body.prompt?.trim()) {
       return jsonError("prompt is required", 400);
     }
+    if (!body.repo?.trim()) {
+      return jsonError("repo is required", 400);
+    }
+
+    requireRepoAccess(session, body.repo.trim(), "agents");
 
     const validTypes: CursorAgentJobType[] = [
       "issue",
@@ -46,6 +71,7 @@ export async function POST(request: NextRequest) {
       "feature",
       "bugfix",
       "refactor",
+      "merge_conflict",
     ];
     const type = validTypes.includes(body.type as CursorAgentJobType)
       ? (body.type as CursorAgentJobType)
@@ -55,14 +81,18 @@ export async function POST(request: NextRequest) {
       type,
       title: body.title.trim(),
       prompt: body.prompt.trim(),
-      repo: body.repo?.trim(),
+      repo: body.repo.trim(),
+      actorId: session.memberId,
     });
 
     return NextResponse.json(
       { job: mapJob(job), agent: mapJob(job) },
       { status: 201 },
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to delegate to Cursor agent");
   }
 }

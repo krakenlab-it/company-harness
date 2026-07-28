@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, AuthError } from "@/lib/auth";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
 import type { TicketPriority, TicketStatus } from "@/lib/types";
@@ -25,6 +26,7 @@ function mapPriority(priority?: string): TicketPriority {
 
 export async function GET(request: NextRequest) {
   try {
+    await requireAuth();
     const projectId = request.nextUrl.searchParams.get("projectId") ?? undefined;
     const sprintId = request.nextUrl.searchParams.get("sprintId") ?? undefined;
     const status = request.nextUrl.searchParams.get("status") as
@@ -38,13 +40,17 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ tickets });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to list tickets");
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    await requireAuth();
     const body = await parseJsonBody<{
       title?: string;
       description?: string;
@@ -85,7 +91,10 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ ticket }, { status: 201 });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to create ticket");
   }
 }
@@ -93,6 +102,7 @@ export async function POST(request: NextRequest) {
 /** Supports TicketBoard PATCH to collection route with { id, ...patch } */
 export async function PATCH(request: NextRequest) {
   try {
+    await requireAuth();
     const body = await parseJsonBody<{
       id?: string;
       status?: TicketStatus;
@@ -120,7 +130,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     return NextResponse.json({ ticket });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to update ticket");
   }
 }

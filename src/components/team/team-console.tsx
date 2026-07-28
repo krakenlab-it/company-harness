@@ -17,6 +17,7 @@ import { Panel } from "@/components/ui/panel";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AccessMatrix } from "@/components/team/access-matrix";
 import { cn } from "@/lib/utils";
 
 interface TeamMember {
@@ -348,7 +349,9 @@ export function TeamConsole() {
         )}
       </section>
 
-      {/* Repos */}
+      <AccessMatrix />
+
+      {/* Repos — team-level allowed actions (legacy) */}
       <section className="space-y-4">
         <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-mist flex items-center gap-2">
           <GitBranch className="h-4 w-4" />

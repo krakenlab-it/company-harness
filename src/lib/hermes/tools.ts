@@ -2,7 +2,9 @@ import { z } from "zod";
 import { tool } from "ai";
 import { store } from "@/lib/store/memory-store";
 import { PREFERRED_STACK } from "@/lib/guidelines/stack-guidelines";
-import { delegateToCursor } from "@/lib/cursor/client";
+import { getVisibleRepos } from "@/lib/auth/permissions";
+import { DEMO_MEMBER_ID } from "@/lib/auth/config";
+import type { TicketStatus } from "@/lib/types";
 
 export const listProjectsSchema = z.object({
   status: z
@@ -32,6 +34,26 @@ export const createTicketSchema = z.object({
     .default("medium"),
   assigneeId: z.string().optional().describe("Team member ID"),
   labels: z.array(z.string()).optional(),
+});
+
+export const updateTicketSchema = z.object({
+  ticketId: z.string().describe("Ticket ID"),
+  status: z
+    .enum(["backlog", "todo", "in_progress", "review", "done"])
+    .optional(),
+  priority: z.enum(["low", "medium", "high", "critical"]).optional(),
+  assigneeId: z.string().optional(),
+  hermesNotes: z.string().optional(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+});
+
+export const ticketIdSchema = z.object({
+  ticketId: z.string().describe("Ticket ID"),
+});
+
+export const scanRepoContextSchema = z.object({
+  repoUrl: z.string().describe("Repository URL or name"),
 });
 
 export const listCostsSchema = z.object({
@@ -80,13 +102,6 @@ export const listAgentJobsSchema = z.object({
     .describe("Filter by job status"),
 });
 
-export const delegateToCursorSchema = z.object({
-  type: z.enum(["issue", "pr", "feature", "bugfix", "refactor"]),
-  title: z.string().describe("Short title for the agent job"),
-  prompt: z.string().describe("Detailed instructions for the Cursor agent"),
-  repo: z.string().optional().describe("Repository URL"),
-});
-
 export const getGuidelinesSchema = z.object({
   section: z
     .string()
@@ -98,76 +113,59 @@ export const getTeamBudgetSchema = z.object({
   category: z.string().optional().describe("Filter by budget category"),
 });
 
-export const hermesToolDescriptors = {
-  list_projects: {
-    name: "list_projects",
-    description: "List all projects in the harness, optionally filtered by status.",
-    parameters: listProjectsSchema,
-  },
-  get_project_status: {
-    name: "get_project_status",
-    description:
-      "Get detailed status for a project including progress, goals, stack, and related tickets.",
-    parameters: getProjectStatusSchema,
-  },
-  list_tickets: {
-    name: "list_tickets",
-    description: "List tickets, optionally filtered by project or status.",
-    parameters: listTicketsSchema,
-  },
-  create_ticket: {
-    name: "create_ticket",
-    description: "Create a new ticket in a project.",
-    parameters: createTicketSchema,
-  },
-  list_costs: {
-    name: "list_costs",
-    description: "List provider costs and spend data.",
-    parameters: listCostsSchema,
-  },
-  update_cost: {
-    name: "update_cost",
-    description: "Update a provider cost entry (budget, spend, or notes).",
-    parameters: updateCostSchema,
-  },
-  list_crm_contacts: {
-    name: "list_crm_contacts",
-    description: "List CRM contacts with optional status filter.",
-    parameters: listCrmContactsSchema,
-  },
-  create_crm_note: {
-    name: "create_crm_note",
-    description: "Add a note or Hermes insight to a CRM contact.",
-    parameters: createCrmNoteSchema,
-  },
-  list_agent_jobs: {
-    name: "list_agent_jobs",
-    description: "List Cursor agent jobs and their status.",
-    parameters: listAgentJobsSchema,
-  },
-  delegate_to_cursor: {
-    name: "delegate_to_cursor",
-    description:
-      "Delegate a coding task to a Cursor Cloud Agent. Queues locally if API is unavailable.",
-    parameters: delegateToCursorSchema,
-  },
-  get_guidelines: {
-    name: "get_guidelines",
-    description:
-      "Get KrakenLab preferred stack guidelines and team standards.",
-    parameters: getGuidelinesSchema,
-  },
-  get_team_budget: {
-    name: "get_team_budget",
-    description: "Get team budget categories with limits and spend.",
-    parameters: getTeamBudgetSchema,
-  },
-} as const;
+export function createHermesTools(options?: { memberId?: string }) {
+  const memberId = options?.memberId ?? DEMO_MEMBER_ID;
 
-export function createHermesTools() {
+  function updateTicketStatus(
+    ticketId: string,
+    status: TicketStatus,
+    summary: string,
+  ) {
+    const updated = store.updateTicket(ticketId, { status });
+    if (!updated) return { error: "Ticket not found" };
+    store.addActivity({
+      projectId: updated.projectId,
+      entityType: "ticket",
+      entityId: ticketId,
+      action: "updated",
+      summary,
+    });
+    return updated;
+  }
+
   return {
+    list_visible_repos: tool({
+      description: "List GitHub repos the current user can access.",
+      inputSchema: z.object({}),
+      execute: async () => getVisibleRepos(memberId),
+    }),
+    scan_repo_context: tool({
+      description:
+        "Scan stack dependencies, open tickets, and recent agent jobs for a repo.",
+      inputSchema: scanRepoContextSchema,
+      execute: async ({ repoUrl }) => {
+        const repo =
+          store.findRepoByUrl(repoUrl) ??
+          getVisibleRepos(memberId).find((r) => r.name.includes(repoUrl));
+        if (!repo) return { error: "Repo not found or not visible" };
+        const project = store.listProjects().find(
+          (p) =>
+            p.repoUrl &&
+            p.repoUrl.replace(/\/$/, "") === repo.url.replace(/\/$/, ""),
+        );
+        const stack = store.listStack().filter((s) => s.repoId === repo.id);
+        const tickets = project
+          ? store.listTickets({ projectId: project.id })
+          : [];
+        const agents = store
+          .listAgentJobs()
+          .filter((j) => j.repo?.includes(repo.name))
+          .slice(0, 10);
+        return { repo, stack, tickets, agents, project };
+      },
+    }),
     list_projects: tool({
-      description: hermesToolDescriptors.list_projects.description,
+      description: "List all projects in the harness, optionally filtered by status.",
       inputSchema: listProjectsSchema,
       execute: async ({ status }) => {
         const projects = store.listProjects();
@@ -177,7 +175,8 @@ export function createHermesTools() {
       },
     }),
     get_project_status: tool({
-      description: hermesToolDescriptors.get_project_status.description,
+      description:
+        "Get detailed status for a project including progress, goals, stack, and related tickets.",
       inputSchema: getProjectStatusSchema,
       execute: async ({ projectId }) => {
         const project =
@@ -190,14 +189,14 @@ export function createHermesTools() {
       },
     }),
     list_tickets: tool({
-      description: hermesToolDescriptors.list_tickets.description,
+      description: "List tickets, optionally filtered by project or status.",
       inputSchema: listTicketsSchema,
       execute: async ({ projectId, status }) => {
         return store.listTickets({ projectId, status });
       },
     }),
     create_ticket: tool({
-      description: hermesToolDescriptors.create_ticket.description,
+      description: "Create a new ticket in a project (opens work).",
       inputSchema: createTicketSchema,
       execute: async (input) => {
         const ticket = store.createTicket({
@@ -219,8 +218,36 @@ export function createHermesTools() {
         return ticket;
       },
     }),
+    update_ticket: tool({
+      description: "Update ticket fields including status, priority, and notes.",
+      inputSchema: updateTicketSchema,
+      execute: async ({ ticketId, ...patch }) => {
+        const updated = store.updateTicket(ticketId, patch);
+        if (!updated) return { error: "Ticket not found" };
+        store.addActivity({
+          projectId: updated.projectId,
+          entityType: "ticket",
+          entityId: ticketId,
+          action: "updated",
+          summary: `Updated ticket: ${updated.title}`,
+        });
+        return updated;
+      },
+    }),
+    close_ticket: tool({
+      description: "Close a ticket by setting status to done.",
+      inputSchema: ticketIdSchema,
+      execute: async ({ ticketId }) =>
+        updateTicketStatus(ticketId, "done", `Closed ticket ${ticketId}`),
+    }),
+    reopen_ticket: tool({
+      description: "Reopen a closed ticket to todo.",
+      inputSchema: ticketIdSchema,
+      execute: async ({ ticketId }) =>
+        updateTicketStatus(ticketId, "todo", `Reopened ticket ${ticketId}`),
+    }),
     list_costs: tool({
-      description: hermesToolDescriptors.list_costs.description,
+      description: "List provider costs and spend data.",
       inputSchema: listCostsSchema,
       execute: async ({ provider }) => {
         const costs = store.listCosts();
@@ -230,7 +257,7 @@ export function createHermesTools() {
       },
     }),
     update_cost: tool({
-      description: hermesToolDescriptors.update_cost.description,
+      description: "Update a provider cost entry (budget, spend, or notes).",
       inputSchema: updateCostSchema,
       execute: async ({ costId, ...patch }) => {
         const updated = store.updateCost(costId, patch);
@@ -239,7 +266,7 @@ export function createHermesTools() {
       },
     }),
     list_crm_contacts: tool({
-      description: hermesToolDescriptors.list_crm_contacts.description,
+      description: "List CRM contacts with optional status filter.",
       inputSchema: listCrmContactsSchema,
       execute: async ({ status }) => {
         const contacts = store.listContacts();
@@ -249,16 +276,14 @@ export function createHermesTools() {
       },
     }),
     create_crm_note: tool({
-      description: hermesToolDescriptors.create_crm_note.description,
+      description: "Add a note or Hermes insight to a CRM contact.",
       inputSchema: createCrmNoteSchema,
       execute: async ({ contactId, note, hermesInsight }) => {
         const contact = store.getContact(contactId);
         if (!contact) return { error: "Contact not found" };
         const existingNotes = contact.notes ?? "";
         const updated = store.updateContact(contactId, {
-          notes: existingNotes
-            ? `${existingNotes}\n\n${note}`
-            : note,
+          notes: existingNotes ? `${existingNotes}\n\n${note}` : note,
           hermesInsight: hermesInsight ?? contact.hermesInsight,
           lastContactAt: new Date().toISOString(),
         });
@@ -272,33 +297,32 @@ export function createHermesTools() {
       },
     }),
     list_agent_jobs: tool({
-      description: hermesToolDescriptors.list_agent_jobs.description,
+      description: "List Cursor agent jobs and their status (read-only).",
       inputSchema: listAgentJobsSchema,
       execute: async ({ status }) => {
         const jobs = store.listAgentJobs();
         return status ? jobs.filter((j) => j.status === status) : jobs;
       },
     }),
-    delegate_to_cursor: tool({
-      description: hermesToolDescriptors.delegate_to_cursor.description,
-      inputSchema: delegateToCursorSchema,
-      execute: async (input) => delegateToCursor(input),
-    }),
     get_guidelines: tool({
-      description: hermesToolDescriptors.get_guidelines.description,
+      description:
+        "Get KrakenLab preferred stack guidelines and team standards.",
       inputSchema: getGuidelinesSchema,
       execute: async ({ section }) => {
         if (section) {
-          const found = PREFERRED_STACK.sections.find(
-            (s) => s.id === section,
+          const found = PREFERRED_STACK.sections.find((s) => s.id === section);
+          return (
+            found ?? {
+              error: "Section not found",
+              available: PREFERRED_STACK.sections.map((s) => s.id),
+            }
           );
-          return found ?? { error: "Section not found", available: PREFERRED_STACK.sections.map((s) => s.id) };
         }
         return PREFERRED_STACK;
       },
     }),
     get_team_budget: tool({
-      description: hermesToolDescriptors.get_team_budget.description,
+      description: "Get team budget categories with limits and spend.",
       inputSchema: getTeamBudgetSchema,
       execute: async ({ category }) => {
         const budgets = store.listBudgets();
@@ -312,4 +336,4 @@ export function createHermesTools() {
   };
 }
 
-export type HermesToolName = keyof typeof hermesToolDescriptors;
+export type HermesToolName = keyof ReturnType<typeof createHermesTools>;

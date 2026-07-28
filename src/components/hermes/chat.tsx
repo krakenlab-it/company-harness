@@ -20,11 +20,22 @@ interface HermesStatus {
   offline: boolean;
 }
 
+interface HermesContext {
+  repos: number;
+  openTickets: number;
+  activeAgents: number;
+}
+
 export function HermesChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [context, setContext] = useState<HermesContext>({
+    repos: 0,
+    openTickets: 0,
+    activeAgents: 0,
+  });
   const [status, setStatus] = useState<HermesStatus>({
     configured: true,
     offline: false,
@@ -51,6 +62,9 @@ export function HermesChat() {
         }
         if (data?.messages?.length) {
           setMessages(data.messages);
+        }
+        if (data?.context) {
+          setContext(data.context);
         }
       })
       .catch(() => {
@@ -102,6 +116,9 @@ export function HermesChat() {
           offline: data.status.offline ?? false,
         });
       }
+      if (data.context) {
+        setContext(data.context);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
     } finally {
@@ -111,9 +128,12 @@ export function HermesChat() {
 
   return (
     <div className="flex h-[calc(100dvh-8rem)] flex-col gap-4 md:h-[calc(100dvh-6rem)]">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant="teal">In-app channel</Badge>
+          <Badge variant="default">{context.repos} repos</Badge>
+          <Badge variant="default">{context.openTickets} tickets</Badge>
+          <Badge variant="default">{context.activeAgents} agents</Badge>
           {status.offline ? (
             <Badge variant="warn">
               <WifiOff className="h-3 w-3" aria-hidden />

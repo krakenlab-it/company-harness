@@ -60,6 +60,8 @@ export interface Ticket {
   priority: TicketPriority;
   assigneeId?: string;
   labels: string[];
+  startDate?: string;
+  dueDate?: string;
   createdAt: string;
   updatedAt: string;
   hermesNotes?: string;
@@ -116,6 +118,7 @@ export type StackStatus = "healthy" | "outdated" | "deprecated" | "unknown";
 export interface StackDependency {
   id: string;
   projectId?: string;
+  repoId?: string;
   name: string;
   category: StackCategory;
   version?: string;
@@ -129,7 +132,8 @@ export type CursorAgentJobType =
   | "pr"
   | "feature"
   | "bugfix"
-  | "refactor";
+  | "refactor"
+  | "merge_conflict";
 
 export type CursorAgentJobStatus =
   | "queued"
@@ -147,6 +151,7 @@ export interface CursorAgentJob {
   cursorAgentId?: string;
   prUrl?: string;
   repo?: string;
+  actorId?: string;
   createdAt: string;
   updatedAt: string;
   resultSummary?: string;
@@ -327,7 +332,29 @@ export interface GitHubRepositorySync {
   lastPushAt?: string;
   openIssues: number;
   projectId?: string;
+  repoId?: string;
   syncedAt: string;
+}
+
+export interface RepoAccess {
+  id: string;
+  memberId: string;
+  repoId: string;
+  actions: RepoAction[];
+  grantedBy?: string;
+  grantedAt: string;
+}
+
+export interface DelegationAudit {
+  id: string;
+  jobId: string;
+  actorId: string;
+  repoUrl: string;
+  type: CursorAgentJobType;
+  promptHash?: string;
+  status: CursorAgentJobStatus;
+  prUrl?: string;
+  createdAt: string;
 }
 
 export interface HarnessSnapshot {
@@ -353,4 +380,6 @@ export interface HarnessSnapshot {
   googleGmailThreads: GoogleGmailThreadSummary[];
   gcpHealthChecks: GcpHealthCheck[];
   githubRepositories: GitHubRepositorySync[];
+  repoAccess: RepoAccess[];
+  delegationAudits: DelegationAudit[];
 }

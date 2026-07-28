@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, AuthError } from "@/lib/auth";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
 import type { Project } from "@/lib/types";
@@ -14,6 +15,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAuth();
     const { id } = await params;
     const project = findProject(id);
 
@@ -24,8 +26,16 @@ export async function GET(
     const sprints = store.listSprints(project.id);
     const tickets = store.listTickets({ projectId: project.id });
 
-    return NextResponse.json({ project, sprints, tickets });
-  } catch {
+    return NextResponse.json({
+      project,
+      sprints,
+      tickets,
+      gantt: { sprints, tickets },
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to get project");
   }
 }
@@ -35,6 +45,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAuth();
     const { id } = await params;
     const project = findProject(id);
 
@@ -63,7 +74,10 @@ export async function PATCH(
     });
 
     return NextResponse.json({ project: updated });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to update project");
   }
 }

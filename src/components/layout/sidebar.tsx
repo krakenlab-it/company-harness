@@ -2,36 +2,49 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
-  BookOpen,
   Bot,
   FolderKanban,
-  Layers,
+  GitBranch,
   LayoutDashboard,
   MessageSquare,
-  Ticket,
-  UserCog,
-  Users,
   Plug,
+  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Suspense } from "react";
+import { RepoSelector } from "@/components/layout/repo-selector";
 
-const navItems: {
+interface SessionInfo {
+  canDelegate: boolean;
+  canAccessIntegrations: boolean;
+}
+
+const baseNavItems: {
   href: string;
   label: string;
   icon: typeof LayoutDashboard;
   exact?: boolean;
+  requires?: keyof SessionInfo;
 }[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/tickets", label: "Tickets", icon: Ticket },
+  { href: "/", label: "Command Center", icon: LayoutDashboard, exact: true },
+  { href: "/repos", label: "Repos", icon: GitBranch },
+  { href: "/work", label: "Work", icon: FolderKanban },
   { href: "/hermes", label: "Hermes", icon: MessageSquare },
-  { href: "/agents", label: "Agents", icon: Bot },
-  { href: "/stack", label: "Stack & Costs", icon: Layers },
-  { href: "/integrations", label: "Integrations", icon: Plug },
-  { href: "/crm", label: "CRM", icon: Users },
-  { href: "/team", label: "Team", icon: UserCog },
-  { href: "/guidelines", label: "Guidelines", icon: BookOpen },
+  {
+    href: "/agents",
+    label: "Agents",
+    icon: Bot,
+    requires: "canDelegate",
+  },
+  {
+    href: "/integrations",
+    label: "Connect",
+    icon: Plug,
+    requires: "canAccessIntegrations",
+  },
+  { href: "/team", label: "Team & Access", icon: UserCog },
 ];
 
 function isActive(pathname: string, href: string, exact?: boolean) {
@@ -52,7 +65,7 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
         <svg
           viewBox="0 0 24 24"
           fill="none"
-          className={cn("text-ink", compact ? "h-4 w-4" : "h-4.5 w-4.5")}
+          className={cn("text-foam", compact ? "h-4 w-4" : "h-4.5 w-4.5")}
         >
           <path
             d="M12 3C8 3 5 6 5 10c0 2.5 1.2 4.7 3 6.2V19a2 2 0 002 2h4a2 2 0 002-2v-2.8c1.8-1.5 3-3.7 3-6.2 0-4-3-7-7-7z"
@@ -82,8 +95,17 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function NavLinks({ orientation }: { orientation: "vertical" | "horizontal" }) {
+function NavLinks({
+  orientation,
+  session,
+}: {
+  orientation: "vertical" | "horizontal";
+  session: SessionInfo;
+}) {
   const pathname = usePathname();
+  const navItems = baseNavItems.filter(
+    (item) => !item.requires || session[item.requires],
+  );
 
   return (
     <nav
@@ -117,30 +139,59 @@ function NavLinks({ orientation }: { orientation: "vertical" | "horizontal" }) {
 }
 
 export function Sidebar() {
+  const [session, setSession] = useState<SessionInfo>({
+    canDelegate: true,
+    canAccessIntegrations: true,
+  });
+
+  useEffect(() => {
+    fetch("/api/session")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) {
+          setSession({
+            canDelegate: data.canDelegate ?? false,
+            canAccessIntegrations: data.canAccessIntegrations ?? false,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <>
-      {/* Desktop sidebar */}
       <aside className="hidden md:flex md:w-56 lg:w-60 shrink-0 flex-col border-r border-[rgba(122,154,171,0.12)] bg-ocean-subtle">
         <div className="flex h-16 items-center border-b border-[rgba(122,154,171,0.12)] px-4">
           <BrandMark />
         </div>
-        <div className="flex-1 overflow-y-auto p-3">
-          <NavLinks orientation="vertical" />
+        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+          <NavLinks orientation="vertical" session={session} />
+          <div className="pt-2 border-t border-[rgba(122,154,171,0.12)]">
+            <p className="text-[10px] uppercase tracking-wide text-mist mb-2 px-2">
+              Repo filter
+            </p>
+            <Suspense fallback={null}>
+              <RepoSelector className="w-full" />
+            </Suspense>
+          </div>
         </div>
-        <div className="border-t border-[rgba(122,154,171,0.12)] p-4">
-          <p className="text-[0.65rem] text-mist/70">
-            KrakenLab Media Co.
-          </p>
+        <div className="border-t border-[rgba(122,154,171,0.12)] p-4 space-y-2">
+          <Link
+            href="/login"
+            className="text-xs text-teal-bright hover:underline"
+          >
+            Sign in
+          </Link>
+          <p className="text-[0.65rem] text-mist/70">KrakenLab Media Co.</p>
         </div>
       </aside>
 
-      {/* Mobile top nav */}
       <header className="md:hidden border-b border-[rgba(122,154,171,0.12)] bg-ocean-subtle">
         <div className="flex h-14 items-center px-4">
           <BrandMark compact />
         </div>
         <div className="px-3 pb-2">
-          <NavLinks orientation="horizontal" />
+          <NavLinks orientation="horizontal" session={session} />
         </div>
       </header>
     </>

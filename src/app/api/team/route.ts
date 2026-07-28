@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, requireRole, AuthError } from "@/lib/auth";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
 import type { RepoAction, TeamMemberRole } from "@/lib/types";
@@ -20,18 +21,24 @@ function toApiBudget(budget: ReturnType<typeof store.getBudget>) {
 
 export async function GET() {
   try {
+    await requireAuth();
     const members = store.listMembers();
     const repos = store.listRepos();
     const budgets = store.listBudgets().map((b) => toApiBudget(b)!);
 
     return NextResponse.json({ members, repos, budgets });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to load team data");
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await requireAuth();
+    requireRole(session, ["admin"]);
     const body = await parseJsonBody<Record<string, unknown>>(request);
     if (!body) {
       return jsonError("Invalid JSON body", 400);
@@ -107,13 +114,18 @@ export async function POST(request: NextRequest) {
     }
 
     return jsonError("kind must be 'member', 'repo', or 'budget'", 400);
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to create team record");
   }
 }
 
 export async function PATCH(request: NextRequest) {
   try {
+    const session = await requireAuth();
+    requireRole(session, ["admin"]);
     const body = await parseJsonBody<Record<string, unknown>>(request);
     if (!body) {
       return jsonError("Invalid JSON body", 400);
@@ -204,7 +216,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     return jsonError("kind must be 'member', 'repo', or 'budget'", 400);
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to update team record");
   }
 }
