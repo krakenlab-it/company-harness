@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, AuthError } from "@/lib/auth";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
 import type { CrmContactStatus, CrmDealStage } from "@/lib/types";
@@ -37,6 +38,7 @@ function buildHermesInsight() {
 
 export async function GET() {
   try {
+    await requireAuth();
     const contacts = store.listContacts();
     const deals = store.listDeals().map((deal) => {
       const contact = store.getContact(deal.contactId);
@@ -62,6 +64,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    await requireAuth();
     const body = await parseJsonBody<Record<string, unknown>>(request);
     if (!body) {
       return jsonError("Invalid JSON body", 400);

@@ -4,6 +4,8 @@ import { store } from "@/lib/store/memory-store";
 import { formatUsd } from "@/lib/utils";
 import { HERMES_SYSTEM_PROMPT } from "@/lib/hermes/system-prompt";
 import { createHermesTools } from "@/lib/hermes/tools";
+import { getVisibleRepos } from "@/lib/auth/permissions";
+import { DEMO_MEMBER_ID } from "@/lib/auth/config";
 
 export interface HermesMessageInput {
   role: "user" | "assistant" | "system";
@@ -19,6 +21,7 @@ export interface HermesContext {
 export interface RunHermesOptions {
   messages: HermesMessageInput[];
   context?: HermesContext;
+  memberId?: string;
 }
 
 export interface RunHermesResult {
@@ -31,8 +34,10 @@ export function isHermesConfigured(): boolean {
   return Boolean(process.env.GROQ_API_KEY);
 }
 
-export function buildHarnessContext(): string {
+export function buildHarnessContext(memberId?: string): string {
   const snapshot = store.getSnapshot();
+  const mid = memberId ?? DEMO_MEMBER_ID;
+  const visibleRepos = getVisibleRepos(mid);
   const activeProjects = snapshot.projects.filter((p) => p.status === "active");
   const openTickets = snapshot.tickets.filter(
     (t) => t.status !== "done" && t.status !== "backlog",
@@ -65,6 +70,9 @@ export function buildHarnessContext(): string {
     `Provider spend: ${formatUsd(totalSpend)} / ${formatUsd(totalBudget)} budgeted`,
     `CRM pipeline (weighted): ${formatUsd(pipelineValue)}`,
     `Active agent jobs: ${snapshot.agents.filter((a) => a.status === "running" || a.status === "queued").length}`,
+    `Visible repos (${visibleRepos.length}): ${visibleRepos.map((r) => r.name).join(", ") || "none"}`,
+    "",
+    "Note: Hermes cannot delegate Cursor agents. Admins delegate via the Agents page.",
   ];
 
   return lines.join("\n");
@@ -224,8 +232,8 @@ export async function runHermes(
   }
 
   const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
-  const tools = createHermesTools();
-  const harnessContext = buildHarnessContext();
+  const tools = createHermesTools({ memberId: options.memberId });
+  const harnessContext = buildHarnessContext(options.memberId);
 
   const result = await generateText({
     model: groq("llama-3.3-70b-versatile"),

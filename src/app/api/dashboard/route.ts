@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { requireAuth, AuthError } from "@/lib/auth";
 import { getCostRollup, scoreStackHealth } from "@/lib/stack/analyzer";
 import { store } from "@/lib/store/memory-store";
 import { jsonError } from "@/lib/api/response";
 
 export async function GET() {
   try {
+    await requireAuth();
     const snapshot = store.getSnapshot();
     const activeProjects = snapshot.projects.filter(
       (p) => p.status === "active",
@@ -51,7 +53,10 @@ export async function GET() {
         status: p.status,
       })),
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to load dashboard stats");
   }
 }

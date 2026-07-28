@@ -9,6 +9,7 @@ import { Panel } from "@/components/ui/panel";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { formatDate } from "@/lib/utils";
+import { FeatureGantt } from "@/components/projects/feature-gantt";
 
 interface ProjectDetail {
   id: string;
@@ -37,6 +38,9 @@ interface Ticket {
   title: string;
   status: string;
   priority: string;
+  startDate?: string;
+  dueDate?: string;
+  labels: string[];
 }
 
 const statusVariant: Record<
@@ -220,6 +224,30 @@ export default function ProjectDetailPage() {
               ))}
             </div>
           )}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-mist">
+            Sprint timeline
+          </h2>
+          <Panel className="p-3">
+            <FeatureGantt
+              sprints={sprints.map((s) => ({
+                id: s.id,
+                name: s.name,
+                startDate: s.startDate,
+                endDate: s.endDate,
+              }))}
+              tickets={tickets.map((t) => ({
+                id: t.id,
+                title: t.title,
+                status: t.status,
+                startDate: t.startDate,
+                dueDate: t.dueDate,
+                labels: t.labels ?? [],
+              }))}
+            />
+          </Panel>
         </section>
 
         <section className="space-y-4">

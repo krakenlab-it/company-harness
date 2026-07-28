@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   isHermesConfigured,
   runHermes,
+  buildHarnessContext,
   type HermesMessageInput,
 } from "@/lib/hermes/agent";
+import { requireAuth, getVisibleRepos, AuthError } from "@/lib/auth";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
 
@@ -21,21 +23,39 @@ function toChatMessages() {
 
 export async function GET() {
   try {
+    const session = await requireAuth();
+    const visibleRepos = getVisibleRepos(session.memberId);
+    const openTickets = store
+      .listTickets()
+      .filter((t) => t.status !== "done" && t.status !== "backlog");
+    const activeAgents = store
+      .listAgentJobs()
+      .filter((j) => j.status === "running" || j.status === "queued");
+
     const messages = toChatMessages();
     return NextResponse.json({
       messages,
+      context: {
+        repos: visibleRepos.length,
+        openTickets: openTickets.length,
+        activeAgents: activeAgents.length,
+      },
       status: {
         configured: isHermesConfigured(),
         offline: false,
       },
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to load Hermes messages");
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await requireAuth();
     const body = await parseJsonBody<{
       messages?: HermesMessageInput[];
       message?: string;
@@ -74,7 +94,16 @@ export async function POST(request: NextRequest) {
     const result = await runHermes({
       messages,
       context: body.context,
+      memberId: session.memberId,
     });
+
+    const visibleRepos = getVisibleRepos(session.memberId);
+    const openTickets = store
+      .listTickets()
+      .filter((t) => t.status !== "done" && t.status !== "backlog");
+    const activeAgents = store
+      .listAgentJobs()
+      .filter((j) => j.status === "running" || j.status === "queued");
 
     return NextResponse.json({
       reply: result.text,
@@ -82,6 +111,12 @@ export async function POST(request: NextRequest) {
       content: result.text,
       toolResults: result.toolResults,
       offline: result.offline,
+      context: {
+        repos: visibleRepos.length,
+        openTickets: openTickets.length,
+        activeAgents: activeAgents.length,
+        snapshot: buildHarnessContext(session.memberId).slice(0, 500),
+      },
       status: {
         configured: isHermesConfigured(),
         offline: false,
@@ -89,6 +124,9 @@ export async function POST(request: NextRequest) {
       messages: toChatMessages(),
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     console.error("[hermes/chat]", error);
     return jsonError("Failed to run Hermes");
   }

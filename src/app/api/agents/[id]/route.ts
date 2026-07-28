@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, requireRole, AuthError } from "@/lib/auth";
 import { updateAgentJobStatus } from "@/lib/cursor/client";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
@@ -17,6 +18,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const session = await requireAuth();
+    requireRole(session, ["admin", "lead"]);
     const { id } = await params;
     const existing = store.getAgentJob(id);
 
@@ -60,7 +63,10 @@ export async function PATCH(
       job: { ...job, url: job.prUrl },
       agent: { ...job, url: job.prUrl },
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to update agent job");
   }
 }

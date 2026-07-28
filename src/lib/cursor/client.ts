@@ -1,5 +1,6 @@
 import type { CursorAgentJob, CursorAgentJobStatus } from "@/lib/types";
 import { store } from "@/lib/store/memory-store";
+import { hashPrompt, wrapDelegationPrompt } from "@/lib/cursor/prompts";
 
 // Cursor Cloud Agent API endpoints may vary by version.
 // This client targets https://api.cursor.com/v0/agents with graceful local fallback.
@@ -11,6 +12,7 @@ export interface DelegateToCursorInput {
   title: string;
   prompt: string;
   repo?: string;
+  actorId?: string;
 }
 
 export function isCursorConfigured(): boolean {
@@ -77,11 +79,14 @@ async function postToCursorApi(
 export async function delegateToCursor(
   input: DelegateToCursorInput,
 ): Promise<CursorAgentJob> {
+  const wrappedPrompt = wrapDelegationPrompt(input.type, input.prompt);
+
   const job = store.createAgentJob({
     type: input.type,
     title: input.title,
-    prompt: input.prompt,
+    prompt: wrappedPrompt,
     repo: input.repo,
+    actorId: input.actorId,
     status: "queued",
   });
 
@@ -90,7 +95,22 @@ export async function delegateToCursor(
     entityId: job.id,
     action: "delegated",
     summary: `Delegated to Cursor: ${input.title}`,
+    actorId: input.actorId,
   });
+
+  if (input.actorId && input.repo) {
+    store.createDelegationAudit({
+      jobId: job.id,
+      actorId: input.actorId,
+      repoUrl: input.repo,
+      type: input.type,
+      promptHash: hashPrompt(wrappedPrompt),
+      status: job.status,
+      prUrl: job.prUrl,
+    });
+  }
+
+  const apiInput = { ...input, prompt: wrappedPrompt };
 
   if (!isCursorConfigured()) {
     store.updateAgentJob(job.id, {
@@ -100,7 +120,7 @@ export async function delegateToCursor(
     return store.getAgentJob(job.id)!;
   }
 
-  const apiResult = await postToCursorApi(input);
+  const apiResult = await postToCursorApi(apiInput);
 
   if (apiResult) {
     const updated = store.updateAgentJob(job.id, {

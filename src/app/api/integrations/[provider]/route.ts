@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  requireAuth,
+  canAccessIntegrations,
+  AuthError,
+} from "@/lib/auth";
 import { jsonError } from "@/lib/api/response";
 import { syncProvider } from "@/lib/integrations/sync";
 import { isProviderConfigured, getProviderEnvConfigs } from "@/lib/integrations/config";
@@ -22,7 +27,12 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ provider: string }> },
 ) {
-  const { provider: raw } = await context.params;
+  try {
+    const session = await requireAuth();
+    if (!canAccessIntegrations(session)) {
+      return jsonError("Forbidden", 403);
+    }
+    const { provider: raw } = await context.params;
   if (!isValidProvider(raw)) {
     return jsonError("Unknown integration provider", 404);
   }
@@ -38,17 +48,34 @@ export async function GET(
     config,
     connection,
   });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
+    return jsonError("Failed to load integration");
+  }
 }
 
 export async function POST(
   _request: Request,
   context: { params: Promise<{ provider: string }> },
 ) {
-  const { provider: raw } = await context.params;
+  try {
+    const session = await requireAuth();
+    if (!canAccessIntegrations(session)) {
+      return jsonError("Forbidden", 403);
+    }
+    const { provider: raw } = await context.params;
   if (!isValidProvider(raw)) {
     return jsonError("Unknown integration provider", 404);
   }
 
   const result = await syncProvider(raw);
   return NextResponse.json(result, { status: result.ok ? 200 : 502 });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
+    return jsonError("Failed to sync integration");
+  }
 }

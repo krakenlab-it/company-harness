@@ -20,6 +20,7 @@ function jsonRequest(url: string, method: string, body?: unknown) {
 describe("API contracts", () => {
   beforeEach(() => {
     store.reset();
+    process.env.HARNESS_DEMO_MODE = "true";
     delete process.env.GROQ_API_KEY;
     delete process.env.HERMES_WEBHOOK_SECRET;
     delete process.env.CURSOR_API_KEY;
@@ -117,7 +118,7 @@ describe("API contracts", () => {
         type: "issue",
         title: "Fix auth redirect",
         prompt: "Investigate and fix the login redirect loop",
-        repo: "krakenlab/harness",
+        repo: "https://github.com/krakenlab/harness",
       }),
     );
     const body = await res.json();

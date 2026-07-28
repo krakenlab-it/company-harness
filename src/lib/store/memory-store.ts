@@ -4,6 +4,7 @@ import type {
   CrmDeal,
   CursorAgentJob,
   GcpHealthCheck,
+  DelegationAudit,
   GitHubRepositorySync,
   GoogleCalendarEventSummary,
   GoogleGmailThreadSummary,
@@ -16,6 +17,7 @@ import type {
   Project,
   ProjectAssignment,
   ProviderCost,
+  RepoAccess,
   Sprint,
   StackDependency,
   TeamBudget,
@@ -488,6 +490,12 @@ class MemoryStore {
     return this.listGitHubRepositories();
   }
 
+  replaceStackForRepo(repoId: string, items: StackDependency[]): StackDependency[] {
+    this.state.stack = this.state.stack.filter((s) => s.repoId !== repoId);
+    this.state.stack.push(...items);
+    return this.listStack().filter((s) => s.repoId === repoId);
+  }
+
   listGitHubRepositories(): GitHubRepositorySync[] {
     return this.list(this.state.githubRepositories);
   }
@@ -556,6 +564,82 @@ class MemoryStore {
         (m) => m.email.toLowerCase() === email.toLowerCase(),
       ),
     );
+  }
+
+  findRepoByUrl(url: string): TeamRepo | undefined {
+    const norm = url.replace(/\.git$/, "").replace(/\/$/, "").toLowerCase();
+    return clone(
+      this.state.repos.find(
+        (r) =>
+          r.url.replace(/\.git$/, "").replace(/\/$/, "").toLowerCase() === norm,
+      ),
+    );
+  }
+
+  listRepoAccess(): RepoAccess[] {
+    return this.list(this.state.repoAccess);
+  }
+
+  listRepoAccessForMember(memberId: string): RepoAccess[] {
+    return this.list(this.state.repoAccess).filter(
+      (a) => a.memberId === memberId,
+    );
+  }
+
+  listRepoAccessForRepo(repoId: string): RepoAccess[] {
+    return this.list(this.state.repoAccess).filter((a) => a.repoId === repoId);
+  }
+
+  getRepoAccess(memberId: string, repoId: string): RepoAccess | undefined {
+    return clone(
+      this.state.repoAccess.find(
+        (a) => a.memberId === memberId && a.repoId === repoId,
+      ),
+    );
+  }
+
+  setRepoAccess(input: {
+    memberId: string;
+    repoId: string;
+    actions: RepoAccess["actions"];
+    grantedBy?: string;
+  }): RepoAccess {
+    const existing = this.state.repoAccess.findIndex(
+      (a) => a.memberId === input.memberId && a.repoId === input.repoId,
+    );
+    if (existing >= 0) {
+      this.state.repoAccess[existing] = {
+        ...this.state.repoAccess[existing],
+        actions: input.actions,
+        grantedBy: input.grantedBy,
+        grantedAt: new Date().toISOString(),
+      };
+      return clone(this.state.repoAccess[existing]);
+    }
+    const entry: RepoAccess = {
+      id: uid("access"),
+      memberId: input.memberId,
+      repoId: input.repoId,
+      actions: input.actions,
+      grantedBy: input.grantedBy,
+      grantedAt: new Date().toISOString(),
+    };
+    return this.create(this.state.repoAccess, entry);
+  }
+
+  createDelegationAudit(
+    input: Omit<DelegationAudit, "id" | "createdAt">,
+  ): DelegationAudit {
+    const entry: DelegationAudit = {
+      ...input,
+      id: uid("audit"),
+      createdAt: new Date().toISOString(),
+    };
+    return this.create(this.state.delegationAudits, entry);
+  }
+
+  listDelegationAudits(limit = 50): DelegationAudit[] {
+    return this.list(this.state.delegationAudits).slice(0, limit);
   }
 }
 

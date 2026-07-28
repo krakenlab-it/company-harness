@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, AuthError } from "@/lib/auth";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
 import { slugify } from "@/lib/utils";
@@ -6,15 +7,20 @@ import type { ProjectStatus } from "@/lib/types";
 
 export async function GET() {
   try {
+    await requireAuth();
     const projects = store.listProjects();
     return NextResponse.json({ projects });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to list projects");
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    await requireAuth();
     const body = await parseJsonBody<{
       name?: string;
       slug?: string;
@@ -57,7 +63,10 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ project }, { status: 201 });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
     return jsonError("Failed to create project");
   }
 }

@@ -182,10 +182,14 @@ async function syncGitHub(): Promise<SyncResult> {
 
   const linked = repos.map((repo) => {
     const project = projects.find((p) => matchRepoToProject(repo.url, p.repoUrl));
+    const teamRepo =
+      store.listRepos().find((r) => r.url === repo.url) ??
+      store.listRepos().find((r) => r.name === repo.fullName);
     return {
       ...repo,
       id: uid("ghrepo"),
       projectId: project?.id,
+      repoId: teamRepo?.id,
       syncedAt: new Date().toISOString(),
     };
   });

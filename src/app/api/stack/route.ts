@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, AuthError } from "@/lib/auth";
 import {
   analyzePackageJson,
   analyzeProjectStack,
@@ -8,6 +9,7 @@ import { jsonError, parseJsonBody } from "@/lib/api/response";
 
 export async function GET(request: NextRequest) {
   try {
+    await requireAuth();
     const projectId = request.nextUrl.searchParams.get("projectId") ?? undefined;
     const dependencies = analyzeProjectStack(projectId);
     const health = scoreStackHealth(projectId);
@@ -24,6 +26,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await requireAuth();
     const body = await parseJsonBody<{
       packageJson?: {
         dependencies?: Record<string, string>;

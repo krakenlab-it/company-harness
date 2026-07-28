@@ -1,19 +1,38 @@
 # KrakenLab Harness
 
-The unified company operating system for **KrakenLab Media** — track projects, talk to Hermes (our AI assistant), delegate work to Cursor agents, watch stack health and cloud spend, manage CRM, and control team access.
+The unified company operating system for **KrakenLab Media** — multi-repo command center, Hermes AI assistant (read context + tickets), admin-controlled Cursor delegation, stack health, and team access.
+
+## V1 focus
+
+| Capability | What you get |
+|------------|----------------|
+| **Auth & permissions** | Supabase sessions (or demo mode); every API scoped to role + repo access |
+| **Command Center** | Dense multi-repo table: stack, tickets, agents, spend, connector status |
+| **Repos & stack** | Per-repo GitHub `package.json` scan and dependency table |
+| **Hermes** | Context from repos, costs, tickets, agent jobs — **cannot** delegate Cursor |
+| **Agents** | Admin/lead only; requires `agents` repo permission; always-new-PR policy |
+| **Work** | Projects, tickets, sprint Gantt timeline |
+| **Team & Access** | Member × repo permission matrix; Resend invites |
+
+**Hidden from V1 nav (code retained):** CRM, Guidelines, legacy dashboard routes.
+
+### Demo mode
+
+Without Supabase configured, set `HARNESS_DEMO_MODE=true` in `.env.local` (default). You get an admin demo session and open APIs for local development.
+
+With Supabase configured, middleware protects all harness pages and APIs except login, join, invite accept, and Hermes webhook.
 
 ## What you can do here
 
 | Area | What it does |
 |------|----------------|
-| **Projects & Tickets** | Track sprints, goals, timelines, and feature work with a simple ticket board |
-| **Hermes** | AI assistant (Groq) that knows your harness — ask about projects, costs, CRM, guidelines |
-| **Agents** | Hand issues, PRs, and features to Cursor Cloud Agents |
-| **Stack & Costs** | Auto-detect core deps (Next.js, Supabase, Stripe, OpenAI, trigger.dev, Resend, …) and enter monthly costs |
-| **CRM** | Contacts and deals with Hermes insights |
-| **Team** | Repos, allowed actions, budgets, **invites via Resend**, login/join flow |
-| **Integrations** | OpenRouter spend, Trigger.dev runs, Google Gmail/Calendar, GCP health, GitHub repos |
-| **Guidelines** | Preferred stack for future builds |
+| **Command Center** | Multi-repo stats, connector strip, agent job visibility |
+| **Repos** | Stack scan from GitHub, repo detail tables |
+| **Work** | Projects, tickets, sprint Gantt |
+| **Hermes** | AI assistant (Groq) — projects, costs, tickets, repo context |
+| **Agents** | Hand features, bugfixes, merge conflicts to Cursor (admin/lead) |
+| **Connect** | OpenRouter, Trigger.dev, Google, GCP, GitHub sync |
+| **Team & Access** | Invites, member repo matrix, budgets |
 
 ## Preferred stack (company default)
 
@@ -42,7 +61,8 @@ Open [http://localhost:3000](http://localhost:3000). Demo data loads immediately
 | `GROQ_API_KEY` | Full Hermes AI (without it, smart demo answers still work) |
 | `CURSOR_API_KEY` | Live Cursor agent delegation (without it, jobs queue locally) |
 | `HERMES_WEBHOOK_SECRET` | Protect the Hermes webhook channel |
-| `NEXT_PUBLIC_SUPABASE_URL` / keys | Wire to Supabase when ready (SQL migration included) |
+| `NEXT_PUBLIC_SUPABASE_URL` / keys | Auth + Postgres (migrations 001–003) |
+| `HARNESS_DEMO_MODE` | `true` = demo admin session without Supabase (default when Supabase unset) |
 | `OPENROUTER_API_KEY` | Live token usage + spend sync |
 | `TRIGGER_SECRET_KEY` | Trigger.dev runs and estimated spend |
 | `GITHUB_TOKEN` / `GITHUB_ORG` | Sync real GitHub repos to projects |
@@ -70,16 +90,15 @@ Open **Integrations** in the sidebar (or visit `/integrations`) to connect servi
 3. Invitee opens `/join?token=…` → sign in (Supabase Google/email) or accept in demo mode.
 4. Accept creates the team member and project assignments.
 
-SQL for invites and integrations: `supabase/migrations/002_integrations_invites_auth.sql`.
+SQL migrations:
 
-## Talk to Hermes
-
-1. **In-app** — open **Hermes** in the sidebar and chat.
-2. **Webhook** (Slack / Zapier / scripts) — `POST /api/hermes/webhook` with `{ "text": "What's our spend this month?" }`.
+- `supabase/migrations/001_harness_schema.sql` — core schema
+- `supabase/migrations/002_integrations_invites_auth.sql` — integrations + invites
+- `supabase/migrations/003_v1_permissions.sql` — repo_access, delegation_audit, Gantt dates
 
 ## Database
 
-Supabase schema lives in `supabase/migrations/001_harness_schema.sql`. Until Supabase is connected, the app uses a full in-memory store with seed data (great for local demos and tests).
+Supabase schema lives in `supabase/migrations/`. Until Supabase is connected, the app uses a full in-memory store with seed data (great for local demos and tests).
 
 ## Scripts
 
