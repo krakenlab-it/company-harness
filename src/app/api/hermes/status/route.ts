@@ -15,6 +15,7 @@ export async function GET() {
       groqModel: connection.groqModel ?? getHermesGroqModel(),
       offline: connection.offline,
       hint: connection.hint,
+      emptyEnvLocalOverride: connection.emptyEnvLocalOverride,
       migrationsRequired: false,
       restartRequired:
         !connection.configured &&

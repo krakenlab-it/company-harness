@@ -5,6 +5,7 @@ import { formatUsd } from "@/lib/utils";
 import { HERMES_SYSTEM_PROMPT } from "@/lib/hermes/system-prompt";
 import { createHermesTools } from "@/lib/hermes/tools";
 import { getHermesGroqModel } from "@/lib/hermes/config";
+import { getGroqApiKey } from "@/lib/hermes/env";
 import { getVisibleRepos } from "@/lib/auth/permissions";
 import { DEMO_MEMBER_ID } from "@/lib/auth/config";
 
@@ -32,8 +33,7 @@ export interface RunHermesResult {
 }
 
 export function isHermesConfigured(): boolean {
-  const key = process.env.GROQ_API_KEY?.trim();
-  return Boolean(key && key.length > 8);
+  return Boolean(getGroqApiKey());
 }
 
 export function buildHarnessContext(memberId?: string): string {
@@ -223,7 +223,9 @@ export async function runHermes(
     });
   }
 
-  if (!isHermesConfigured()) {
+  const modelId = getHermesGroqModel();
+  const apiKey = getGroqApiKey();
+  if (!apiKey) {
     const text = buildOfflineResponse(messages, context);
     store.addHermesMessage({
       channel: "in_app",
@@ -233,8 +235,7 @@ export async function runHermes(
     return { text, offline: true };
   }
 
-  const modelId = getHermesGroqModel();
-  const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
+  const groq = createGroq({ apiKey });
   const tools = createHermesTools({ memberId: options.memberId });
   const harnessContext = buildHarnessContext(options.memberId);
 

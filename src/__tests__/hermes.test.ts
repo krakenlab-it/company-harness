@@ -31,7 +31,7 @@ describe("Hermes agent", () => {
     delete process.env.GROQ_API_KEY;
     const status = getHermesConnectionStatus();
     expect(status.offline).toBe(true);
-    expect(status.hint).toContain("GROQ_API_KEY");
+    expect(status.hint).toMatch(/GROQ_API_KEY|\.env\.local/i);
   });
 
   it("builds harness context from the store", () => {
