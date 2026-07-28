@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ArrowUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -26,6 +27,8 @@ interface HermesContext {
 }
 
 export function HermesChat() {
+  const searchParams = useSearchParams();
+  const scopedRepo = searchParams.get("repo");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -128,14 +131,14 @@ export function HermesChat() {
 
   return (
     <div className="flex h-[calc(100dvh-8rem)] flex-col gap-3 md:h-[calc(100dvh-6rem)]">
-      <div className="flex flex-wrap items-center gap-2 text-xs text-mist">
-        <Badge variant="default">{context.repos} repos in context</Badge>
-        <Badge variant="default">{context.openTickets} open tickets</Badge>
-        <Badge variant="default">{context.activeAgents} active agents</Badge>
-        {status.offline && <Badge variant="warn">Offline mode</Badge>}
-        {!status.configured && !status.offline && (
-          <Badge variant="warn">Demo — add GROQ_API_KEY for live AI</Badge>
+      <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-mist">
+        {scopedRepo && (
+          <Badge variant="teal">Target: {scopedRepo}</Badge>
         )}
+        <Badge variant="default">{context.repos} entities</Badge>
+        <Badge variant="default">{context.openTickets} tickets</Badge>
+        <Badge variant="default">{context.activeAgents} missions</Badge>
+        {status.offline && <Badge variant="warn">Offline</Badge>}
       </div>
 
       <Panel
@@ -150,25 +153,32 @@ export function HermesChat() {
         >
           {messages.length === 0 && (
             <div className="flex h-full min-h-[200px] flex-col items-center justify-center text-center px-4">
-              <p className="font-display text-2xl font-semibold tracking-tight text-foam mb-2">
-                What can Hermes help with?
+              <p className="font-display text-lg font-semibold tracking-tight text-foam mb-2">
+                Intelligence query
               </p>
-              <p className="max-w-md text-sm text-mist leading-relaxed">
-                Ask about project status, repo stack, open tickets, spend, or
-                team workflows. Hermes reads your harness context — it cannot
-                delegate Cursor agents.
+              <p className="max-w-md text-xs text-mist leading-relaxed">
+                {scopedRepo
+                  ? `Scoped to ${scopedRepo}. Ask about stack, tickets, spend, or sprint status.`
+                  : "Ask about project status, repo stack, open tickets, or spend across all entities."}
               </p>
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                {[
-                  "Summarize open tickets",
-                  "Stack health by repo",
-                  "What are we spending this month?",
-                ].map((suggestion) => (
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                {(scopedRepo
+                  ? [
+                      `Scan context for ${scopedRepo}`,
+                      "Open tickets on this repo",
+                      "Stack health summary",
+                    ]
+                  : [
+                      "Summarize open tickets",
+                      "Stack health by repo",
+                      "What are we spending this month?",
+                    ]
+                ).map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
                     onClick={() => setInput(suggestion)}
-                    className="rounded-full border border-[var(--border)] px-3 py-1.5 text-xs text-mist hover:bg-[var(--surface-muted)] hover:text-foam transition-colors"
+                    className="rounded-sm border border-[var(--border)] px-2.5 py-1 text-[10px] font-mono uppercase tracking-wide text-mist hover:bg-[var(--surface-muted)] hover:text-teal-bright transition-colors"
                   >
                     {suggestion}
                   </button>
@@ -233,7 +243,7 @@ export function HermesChat() {
               type="submit"
               size="icon"
               disabled={!input.trim() || sending}
-              className="rounded-full h-8 w-8 shrink-0 mb-0.5"
+              className="rounded-sm h-8 w-8 shrink-0 mb-0.5"
               aria-label="Send message"
             >
               {sending ? (

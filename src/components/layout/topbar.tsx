@@ -6,28 +6,40 @@ export interface TopbarProps {
   description?: string;
   actions?: ReactNode;
   className?: string;
+  mission?: string;
 }
 
-export function Topbar({ title, description, actions, className }: TopbarProps) {
+export function Topbar({
+  title,
+  description,
+  actions,
+  className,
+  mission,
+}: TopbarProps) {
   return (
     <header
       className={cn(
-        "flex flex-col gap-3 border-b border-[var(--border)] bg-[var(--canvas)] px-4 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-6 sm:py-5",
+        "flex flex-col gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5",
         className,
       )}
     >
-      <div className="min-w-0 space-y-1">
-        <h1 className="font-display text-lg font-semibold tracking-tight text-foam sm:text-xl">
+      <div className="min-w-0 space-y-0.5">
+        {mission && (
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-teal-bright font-mono">
+            {mission}
+          </p>
+        )}
+        <h1 className="font-display text-base font-semibold tracking-tight text-foam sm:text-lg">
           {title}
         </h1>
         {description && (
-          <p className="max-w-2xl text-sm text-mist leading-relaxed">
+          <p className="max-w-2xl text-xs text-mist leading-relaxed">
             {description}
           </p>
         )}
       </div>
       {actions && (
-        <div className="flex shrink-0 items-center gap-2 pb-0.5">{actions}</div>
+        <div className="flex shrink-0 items-center gap-2">{actions}</div>
       )}
     </header>
   );

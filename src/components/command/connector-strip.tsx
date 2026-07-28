@@ -17,15 +17,15 @@ export function ConnectorStrip({
   connectors: Array<{ provider: string; configured: boolean }>;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 text-xs text-mist border border-[var(--border)] rounded-lg px-3 py-2.5 bg-[var(--surface)]">
-      <span className="font-medium uppercase tracking-wider text-[10px] shrink-0">
-        Connectors
+    <div className="flex flex-wrap items-center gap-4 text-[11px] text-mist border border-[var(--border)] rounded-sm px-3 py-2 bg-[var(--surface)] font-mono">
+      <span className="font-semibold uppercase tracking-[0.08em] text-sand shrink-0">
+        Feeds
       </span>
       {connectors.map((c) => (
         <Link
           key={c.provider}
           href="/integrations"
-          className="inline-flex items-center gap-1.5 hover:text-foam transition-colors"
+          className="inline-flex items-center gap-1.5 hover:text-teal-bright transition-colors"
         >
           <span
             className={cn(

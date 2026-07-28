@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -8,9 +8,15 @@ const inter = Inter({
   display: "swap",
 });
 
+const jetbrains = JetBrains_Mono({
+  variable: "--font-jetbrains",
+  subsets: ["latin"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "KrakenLab Harness",
-  description: "Company operating system for KrakenLab Media",
+  description: "Operations platform for KrakenLab Media",
 };
 
 export default function RootLayout({
@@ -19,7 +25,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${jetbrains.variable} h-full antialiased`}
+    >
       <body className="min-h-full bg-ocean text-foam font-sans">{children}</body>
     </html>
   );

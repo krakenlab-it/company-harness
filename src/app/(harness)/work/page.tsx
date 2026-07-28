@@ -19,20 +19,21 @@ function WorkTabs() {
   return (
     <>
       <Topbar
+        mission="04 · Audit"
         title="Work"
-        description="Projects, tickets, and delivery timelines."
+        description="Delivery objects, ticket state, and timeline audit."
       />
-      <div className="border-b border-[rgba(122,154,171,0.12)] px-4 sm:px-6">
-        <nav className="flex gap-1" aria-label="Work sections">
+      <div className="border-b border-[var(--border)] px-4 sm:px-5 bg-[var(--surface)]">
+        <nav className="flex gap-0" aria-label="Work sections">
           {TABS.map((t) => (
             <a
               key={t.id}
               href={`/work?tab=${t.id}`}
               className={cn(
-                "px-3 py-2 text-xs uppercase tracking-wide border-b-2 -mb-px transition-colors",
+                "px-3 py-2 text-[10px] uppercase tracking-[0.08em] font-semibold border-b-2 -mb-px transition-colors",
                 tab === t.id
-                  ? "border-teal-bright text-foam"
-                  : "border-transparent text-mist hover:text-foam",
+                  ? "border-teal-bright text-teal-bright"
+                  : "border-transparent text-sand hover:text-mist",
               )}
               aria-current={tab === t.id ? "page" : undefined}
             >
@@ -41,7 +42,7 @@ function WorkTabs() {
           ))}
         </nav>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-[var(--canvas)]">
         {tab === "tickets" ? <TicketBoard /> : <ProjectBoard />}
       </div>
     </>

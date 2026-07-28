@@ -1,31 +1,35 @@
+import { Suspense } from "react";
 import { Topbar } from "@/components/layout/topbar";
 import { HermesChat } from "@/components/hermes/chat";
 import { Panel } from "@/components/ui/panel";
+import { PageLoader } from "@/components/ui/page-loader";
 
 export default function HermesPage() {
   return (
     <>
       <Topbar
+        mission="02 · Analyze"
         title="Hermes"
-        description="KrakenLab's AI operations assistant — in-app chat and webhook integrations."
+        description="Intelligence layer — query harness context, repos, tickets, and spend. Cannot delegate agents."
       />
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-[var(--canvas)]">
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <HermesChat />
+            <Suspense fallback={<PageLoader label="Loading intel…" />}>
+              <HermesChat />
+            </Suspense>
           </div>
-          <aside className="space-y-4 animate-fade-up">
-            <Panel>
-              <h2 className="font-display text-sm font-semibold text-foam">
-                Webhook channel
+          <aside className="space-y-3">
+            <Panel className="bg-[var(--surface)]">
+              <h2 className="text-[10px] font-semibold uppercase tracking-[0.1em] text-sand mb-2">
+                Webhook feed
               </h2>
-              <p className="mt-2 text-sm text-mist leading-relaxed">
-                Connect Slack, Zapier, or any HTTP client to Hermes with a simple
-                POST request. Ideal for slash commands, automations, or scripts.
+              <p className="text-xs text-mist leading-relaxed">
+                POST external events to Hermes from Slack, Zapier, or scripts.
               </p>
             </Panel>
-            <Panel className="font-mono text-xs">
-              <p className="text-mist mb-2 uppercase tracking-wide text-[0.65rem]">
+            <Panel className="font-mono text-[11px] bg-[var(--surface-muted)]">
+              <p className="text-sand mb-2 uppercase tracking-wider text-[10px]">
                 Endpoint
               </p>
               <code className="text-foam break-all">
