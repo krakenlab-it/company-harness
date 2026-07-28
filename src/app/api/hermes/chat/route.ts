@@ -11,6 +11,7 @@ import { requireAuth, getVisibleRepos, AuthError } from "@/lib/auth";
 import { store } from "@/lib/store/memory-store";
 import { syncRunningAgentJobs } from "@/lib/cursor/client";
 import { getHermesGroqModel } from "@/lib/hermes/config";
+import { getHermesConnectionStatus } from "@/lib/hermes/status";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
 
 function toChatMessages() {
@@ -75,14 +76,17 @@ export async function GET() {
     const messages = toChatMessages();
     const context = await buildContextPayload(session.memberId);
 
+    const connection = getHermesConnectionStatus();
+
     return NextResponse.json({
       messages,
       trackedJobs: trackedAgentJobs(),
       context,
       status: {
-        configured: isHermesConfigured(),
-        offline: !isHermesConfigured(),
-        groqModel: getHermesGroqModel(),
+        configured: connection.configured,
+        offline: connection.offline,
+        groqModel: connection.groqModel ?? getHermesGroqModel(),
+        hint: connection.hint,
       },
     });
   } catch (error) {
@@ -134,6 +138,7 @@ export async function POST(request: NextRequest) {
       );
 
       const context = await buildContextPayload(session.memberId);
+      const connection = getHermesConnectionStatus();
 
       return NextResponse.json({
         reply: delegation.text,
@@ -154,8 +159,10 @@ export async function POST(request: NextRequest) {
           snapshot: buildHarnessContext(session.memberId).slice(0, 500),
         },
         status: {
-          configured: isHermesConfigured(),
-          offline: !isHermesConfigured(),
+          configured: connection.configured,
+          offline: connection.offline,
+          groqModel: connection.groqModel,
+          hint: connection.hint,
         },
         messages: toChatMessages(),
         trackedJobs: trackedAgentJobs(),
@@ -184,6 +191,7 @@ export async function POST(request: NextRequest) {
     });
 
     const context = await buildContextPayload(session.memberId);
+    const connection = getHermesConnectionStatus();
 
     return NextResponse.json({
       reply: result.text,
@@ -196,9 +204,10 @@ export async function POST(request: NextRequest) {
         snapshot: buildHarnessContext(session.memberId).slice(0, 500),
       },
       status: {
-        configured: isHermesConfigured(),
-        offline: result.offline ?? !isHermesConfigured(),
-        groqModel: getHermesGroqModel(),
+        configured: connection.configured,
+        offline: result.offline ?? connection.offline,
+        groqModel: connection.groqModel ?? getHermesGroqModel(),
+        hint: connection.hint,
       },
       messages: toChatMessages(),
       trackedJobs: trackedAgentJobs(),

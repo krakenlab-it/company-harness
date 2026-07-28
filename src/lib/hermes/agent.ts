@@ -32,7 +32,8 @@ export interface RunHermesResult {
 }
 
 export function isHermesConfigured(): boolean {
-  return Boolean(process.env.GROQ_API_KEY);
+  const key = process.env.GROQ_API_KEY?.trim();
+  return Boolean(key && key.length > 8);
 }
 
 export function buildHarnessContext(memberId?: string): string {

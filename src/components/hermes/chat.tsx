@@ -22,6 +22,7 @@ interface HermesStatus {
   configured: boolean;
   offline: boolean;
   groqModel?: string;
+  hint?: string;
 }
 
 interface HermesContext {
@@ -63,6 +64,7 @@ export function HermesChat() {
         configured: s.configured ?? true,
         offline: s.offline ?? false,
         groqModel: s.groqModel,
+        hint: s.hint,
       });
     }
     if (Array.isArray(data?.messages)) {
@@ -160,11 +162,18 @@ export function HermesChat() {
         <Badge variant="default">{context.repos} entities</Badge>
         <Badge variant="default">{context.openTickets} tickets</Badge>
         <Badge variant="default">{context.activeAgents} missions</Badge>
-        {status.offline && <Badge variant="warn">Demo mode</Badge>}
+        {status.offline && (
+          <Badge variant="warn" title={status.hint}>
+            Demo mode — Groq key missing
+          </Badge>
+        )}
         {status.configured && !status.offline && status.groqModel && (
           <Badge variant="ok">Groq · {status.groqModel}</Badge>
         )}
       </div>
+      {status.offline && status.hint && (
+        <p className="text-xs text-mist -mt-1">{status.hint}</p>
+      )}
 
       <Panel
         padding="none"

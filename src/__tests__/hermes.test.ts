@@ -4,6 +4,7 @@ import {
   getHermesGroqModel,
   HERMES_DEFAULT_GROQ_MODEL,
 } from "@/lib/hermes/config";
+import { getHermesConnectionStatus } from "@/lib/hermes/status";
 import { store } from "@/lib/store/memory-store";
 import {
   PREFERRED_STACK,
@@ -24,6 +25,13 @@ describe("Hermes agent", () => {
     delete process.env.GROQ_MODEL;
     expect(getHermesGroqModel()).toBe(HERMES_DEFAULT_GROQ_MODEL);
     expect(HERMES_DEFAULT_GROQ_MODEL).toBe("openai/gpt-oss-120b");
+  });
+
+  it("reports connection hint when GROQ_API_KEY is missing", () => {
+    delete process.env.GROQ_API_KEY;
+    const status = getHermesConnectionStatus();
+    expect(status.offline).toBe(true);
+    expect(status.hint).toContain("GROQ_API_KEY");
   });
 
   it("builds harness context from the store", () => {

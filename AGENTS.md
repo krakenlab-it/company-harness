@@ -24,6 +24,15 @@ The harness uses an **OpenAI editorial** light theme (white canvas, black text, 
 
 When changing styling, preserve both the light aesthetic and the loop navigation / repo-scoped `?repo=` handoffs.
 
+### Hermes / Groq API key
+
+Hermes uses the environment variable **`GROQ_API_KEY`** (not a client-side or public env var).
+
+- **Cursor Environment Secrets:** add `GROQ_API_KEY`, then restart `pnpm dev`.
+- **Local:** `.env.local` with the same name also works.
+- UI shows **Demo mode** until the key is present and the server has been restarted.
+- Optional: `GROQ_MODEL` (default `openai/gpt-oss-120b`).
+
 ### Tests & lint
 
 ```bash

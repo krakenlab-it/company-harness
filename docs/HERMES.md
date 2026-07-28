@@ -4,16 +4,27 @@ Hermes is the harness **AI assistant** powered by **Groq** (via Vercel AI SDK). 
 
 ## Groq setup
 
-1. Create an API key at [console.groq.com](https://console.groq.com).
-2. Add to `.env.local`:
+Hermes reads **`GROQ_API_KEY`** from the process environment (same name everywhere).
+
+### Cursor Desktop / Cloud Agent (recommended)
+
+1. Open your agent **Environment** settings (Environment Secrets / variables).
+2. Add: **`GROQ_API_KEY`** = your key from [console.groq.com](https://console.groq.com).
+3. **Restart the dev server** (`pnpm dev`) — Next.js only loads env vars at startup.
+4. Open Hermes — you should see **Groq · openai/gpt-oss-120b** (not “Demo mode”).
+
+Optional: **`GROQ_MODEL`** to override the default model.
+
+### Local `.env.local` (alternative)
 
 ```bash
 GROQ_API_KEY=gsk_...
-# Optional — default is openai/gpt-oss-120b (Groq GPT-OSS 120B)
 GROQ_MODEL=openai/gpt-oss-120b
 ```
 
-3. Restart `pnpm dev`. Hermes chat shows a **Groq · model** badge when live.
+Copy from `.env.example`, restart `pnpm dev`.
+
+> **Note:** Cursor Environment Secrets and `.env.local` both work. You do **not** need both — use whichever matches how you run the app. After changing either one, restart the server.
 
 ### How Groq is wired
 
