@@ -57,7 +57,7 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
     <div className={cn("flex items-center gap-2.5", compact && "gap-2")}>
       <div
         className={cn(
-          "flex items-center justify-center rounded-sm border border-[var(--border)] bg-[var(--surface-muted)]",
+          "flex items-center justify-center rounded-md border border-[var(--border)] bg-[var(--canvas)]",
           compact ? "h-7 w-7" : "h-8 w-8",
         )}
         aria-hidden
@@ -86,9 +86,7 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
           KrakenLab
         </p>
         {!compact && (
-          <p className="text-[0.625rem] text-mist mt-0.5 font-mono uppercase tracking-wider">
-            Ops Platform
-          </p>
+          <p className="text-[0.6875rem] text-mist mt-0.5">Company OS</p>
         )}
       </div>
     </div>
@@ -160,15 +158,15 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="hidden md:flex md:w-52 lg:w-48 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)]">
-        <div className="flex h-12 items-center px-3 border-b border-[var(--border-subtle)]">
+      <aside className="hidden md:flex md:w-56 lg:w-52 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--canvas)]">
+        <div className="flex h-14 items-center px-4 border-b border-[var(--border-subtle)]">
           <BrandMark />
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
           <NavLinks orientation="vertical" session={session} />
           <div className="pt-3 border-t border-[var(--border-subtle)] px-1">
             <p className="text-[10px] font-medium uppercase tracking-wider text-mist mb-2 px-2">
-              Filter
+              Repo filter
             </p>
             <Suspense fallback={null}>
               <RepoSelector className="w-full" />

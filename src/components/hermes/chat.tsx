@@ -131,7 +131,7 @@ export function HermesChat() {
 
   return (
     <div className="flex h-[calc(100dvh-8rem)] flex-col gap-3 md:h-[calc(100dvh-6rem)]">
-      <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-mist">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-mist">
         {scopedRepo && (
           <Badge variant="teal">Target: {scopedRepo}</Badge>
         )}
@@ -154,9 +154,9 @@ export function HermesChat() {
           {messages.length === 0 && (
             <div className="flex h-full min-h-[200px] flex-col items-center justify-center text-center px-4">
               <p className="font-display text-lg font-semibold tracking-tight text-foam mb-2">
-                Intelligence query
+                How can I help?
               </p>
-              <p className="max-w-md text-xs text-mist leading-relaxed">
+              <p className="max-w-md text-sm text-mist leading-relaxed">
                 {scopedRepo
                   ? `Scoped to ${scopedRepo}. Ask about stack, tickets, spend, or sprint status.`
                   : "Ask about project status, repo stack, open tickets, or spend across all entities."}
@@ -178,7 +178,7 @@ export function HermesChat() {
                     key={suggestion}
                     type="button"
                     onClick={() => setInput(suggestion)}
-                    className="rounded-sm border border-[var(--border)] px-2.5 py-1 text-[10px] font-mono uppercase tracking-wide text-mist hover:bg-[var(--surface-muted)] hover:text-teal-bright transition-colors"
+                    className="rounded-full border border-[var(--border)] px-3 py-1.5 text-xs text-mist hover:bg-[var(--surface-muted)] hover:text-foam transition-colors"
                   >
                     {suggestion}
                   </button>
@@ -243,7 +243,7 @@ export function HermesChat() {
               type="submit"
               size="icon"
               disabled={!input.trim() || sending}
-              className="rounded-sm h-8 w-8 shrink-0 mb-0.5"
+              className="rounded-full h-8 w-8 shrink-0 mb-0.5"
               aria-label="Send message"
             >
               {sending ? (

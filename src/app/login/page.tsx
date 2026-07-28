@@ -63,18 +63,16 @@ function LoginForm() {
   }
 
   return (
-    <Panel className="w-full max-w-sm p-8 space-y-5 shadow-none bg-[var(--surface)]">
+    <Panel className="w-full max-w-sm p-8 space-y-5 shadow-none">
       <div className="text-center space-y-1">
-        <p className="text-[10px] font-mono uppercase tracking-[0.12em] text-teal-bright">
-          KrakenLab Ops
-        </p>
-        <h1 className="text-lg font-display font-semibold tracking-tight text-foam">
-          Authenticate
+        <h1 className="text-xl font-display font-semibold tracking-tight text-foam">
+          Sign in
         </h1>
+        <p className="text-sm text-mist">KrakenLab Company OS</p>
       </div>
 
       {!supabaseConfigured && (
-        <p className="text-xs text-mist rounded-sm bg-[var(--surface-muted)] border border-[var(--border-subtle)] p-3 leading-relaxed">
+        <p className="text-sm text-mist rounded-lg bg-[var(--surface)] border border-[var(--border-subtle)] p-3 leading-relaxed">
           Auth is not configured. In demo mode, accept team invites from the
           join link without signing in.
         </p>
@@ -93,8 +91,8 @@ function LoginForm() {
             )}
           </Button>
 
-          <div className="relative text-center text-[10px] font-mono uppercase tracking-wider text-sand">
-            <span className="bg-[var(--surface)] px-2 relative z-10">
+          <div className="relative text-center text-xs text-sand">
+            <span className="bg-[var(--canvas)] px-2 relative z-10">
               or magic link
             </span>
             <div className="absolute inset-x-0 top-1/2 border-t border-[var(--border-subtle)]" />
@@ -116,8 +114,8 @@ function LoginForm() {
       )}
 
       <p className="text-center text-xs text-mist">
-        <Link href="/" className="text-teal-bright hover:underline">
-          Enter platform →
+        <Link href="/" className="text-foam hover:underline">
+          Continue without signing in →
         </Link>
       </p>
     </Panel>

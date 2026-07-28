@@ -11,13 +11,11 @@ function ContextStripInner() {
 
   return (
     <div className="context-strip">
-      <span className="uppercase tracking-wider font-semibold text-sand">
-        Scope
-      </span>
+      <span className="mission-label">Scope</span>
       {repo ? (
         <span className="context-chip">{repo}</span>
       ) : (
-        <span className="context-chip text-mist">ALL REPOS</span>
+        <span className="context-chip text-mist">All repos</span>
       )}
       <span className="hidden sm:inline text-sand">→</span>
       <Link

@@ -32,7 +32,7 @@ function WorkTabs() {
               className={cn(
                 "px-3 py-2 text-[10px] uppercase tracking-[0.08em] font-semibold border-b-2 -mb-px transition-colors",
                 tab === t.id
-                  ? "border-teal-bright text-teal-bright"
+                  ? "border-foam text-foam"
                   : "border-transparent text-sand hover:text-mist",
               )}
               aria-current={tab === t.id ? "page" : undefined}

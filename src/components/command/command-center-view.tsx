@@ -94,7 +94,7 @@ function CommandCenterContent() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[var(--canvas)]">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
         {loading && <PageLoader />}
         {error && <ErrorPanel message={error} />}
 
@@ -150,7 +150,7 @@ function CommandCenterContent() {
                       <td className="p-2 pl-3">
                         <Link
                           href={`/repos/${row.repo.id}`}
-                          className="text-foam font-medium hover:text-teal-bright font-mono text-[11px]"
+                          className="text-foam font-medium hover:underline font-mono text-[11px]"
                         >
                           {row.repo.name}
                         </Link>
@@ -214,8 +214,8 @@ function CommandCenterContent() {
 
             <div className="grid lg:grid-cols-2 gap-3">
               <Panel className="p-0 overflow-hidden">
-                <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--surface-muted)]">
-                  <h2 className="text-[10px] font-semibold uppercase tracking-[0.1em] text-sand">
+                <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--surface)]">
+                  <h2 className="text-[10px] font-medium uppercase tracking-wider text-mist">
                     Mission queue
                   </h2>
                 </div>
@@ -247,8 +247,8 @@ function CommandCenterContent() {
               </Panel>
 
               <Panel className="p-0 overflow-hidden">
-                <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--surface-muted)]">
-                  <h2 className="text-[10px] font-semibold uppercase tracking-[0.1em] text-sand">
+                <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--surface)]">
+                  <h2 className="text-[10px] font-medium uppercase tracking-wider text-mist">
                     Audit trail
                   </h2>
                 </div>
