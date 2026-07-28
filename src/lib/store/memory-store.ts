@@ -25,6 +25,7 @@ import type {
   TeamMember,
   TeamRepo,
   Ticket,
+  MarketingTask,
   TriggerJobRun,
 } from "@/lib/types";
 import { uid } from "@/lib/utils";
@@ -163,14 +164,40 @@ class MemoryStore {
       createdAt: now,
       updatedAt: now,
     };
-    return this.create(this.state.tickets, ticket);
+    const created = this.create(this.state.tickets, ticket);
+    this.syncSprintMembership(created);
+    return created;
   }
 
   updateTicket(id: string, patch: Partial<Ticket>): Ticket | undefined {
-    return this.update(this.state.tickets, id, {
+    const existing = this.state.tickets.find((t) => t.id === id);
+    const previousSprintId = existing?.sprintId;
+
+    const updated = this.update(this.state.tickets, id, {
       ...patch,
       updatedAt: new Date().toISOString(),
     });
+
+    if (updated) {
+      this.syncSprintMembership(updated, previousSprintId);
+    }
+    return updated;
+  }
+
+  private syncSprintMembership(ticket: Ticket, previousSprintId?: string): void {
+    if (previousSprintId && previousSprintId !== ticket.sprintId) {
+      const prev = this.state.sprints.find((s) => s.id === previousSprintId);
+      if (prev) {
+        prev.ticketIds = prev.ticketIds.filter((tid) => tid !== ticket.id);
+      }
+    }
+
+    if (ticket.sprintId) {
+      const sprint = this.state.sprints.find((s) => s.id === ticket.sprintId);
+      if (sprint && !sprint.ticketIds.includes(ticket.id)) {
+        sprint.ticketIds.push(ticket.id);
+      }
+    }
   }
 
   listCosts(): ProviderCost[] {
@@ -651,6 +678,54 @@ class MemoryStore {
       id,
       patch,
     );
+  }
+
+  listMarketingTasks(filters?: {
+    status?: MarketingTask["status"];
+    assigneeId?: string;
+    requesterId?: string;
+  }): MarketingTask[] {
+    let tasks = this.list(this.state.marketingTasks);
+    if (filters?.status) {
+      tasks = tasks.filter((t) => t.status === filters.status);
+    }
+    if (filters?.assigneeId) {
+      tasks = tasks.filter((t) => t.assigneeId === filters.assigneeId);
+    }
+    if (filters?.requesterId) {
+      tasks = tasks.filter((t) => t.requesterId === filters.requesterId);
+    }
+    return tasks.sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+  }
+
+  getMarketingTask(id: string): MarketingTask | undefined {
+    return this.getById(this.state.marketingTasks, id);
+  }
+
+  createMarketingTask(
+    input: Omit<MarketingTask, "id" | "createdAt" | "updatedAt">,
+  ): MarketingTask {
+    const now = new Date().toISOString();
+    const task: MarketingTask = {
+      ...input,
+      id: uid("mkt"),
+      createdAt: now,
+      updatedAt: now,
+    };
+    return this.create(this.state.marketingTasks, task);
+  }
+
+  updateMarketingTask(
+    id: string,
+    patch: Partial<MarketingTask>,
+  ): MarketingTask | undefined {
+    return this.update(this.state.marketingTasks, id, {
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    });
   }
 }
 

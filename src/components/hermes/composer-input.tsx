@@ -9,6 +9,7 @@ import {
 
 const TAG_CLASS: Record<ComposerTagKind, string> = {
   cursor: "text-teal-bright font-semibold bg-teal-bright/10 rounded px-0.5",
+  marketing: "text-rose-500 font-semibold bg-rose-500/10 rounded px-0.5",
   repo: "text-sky-600 font-medium bg-sky-500/10 rounded px-0.5",
   ticket: "text-amber-600 font-medium bg-amber-500/10 rounded px-0.5",
   pr: "text-violet-600 font-medium bg-violet-500/10 rounded px-0.5",

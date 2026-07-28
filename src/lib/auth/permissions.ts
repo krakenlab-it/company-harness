@@ -88,6 +88,23 @@ export function memberCanDelegate(session: HarnessSession): boolean {
   return session.role === "admin" || session.role === "lead";
 }
 
+export function canAccessMarketing(session: HarnessSession): boolean {
+  return (
+    session.role === "admin" ||
+    session.role === "lead" ||
+    session.role === "dev" ||
+    session.role === "marketing"
+  );
+}
+
+export function canRequestMarketingTasks(session: HarnessSession): boolean {
+  return canAccessMarketing(session);
+}
+
+export function canManageMarketingTasks(session: HarnessSession): boolean {
+  return session.role === "admin" || session.role === "marketing";
+}
+
 export function getMemberRepoActions(
   memberId: string,
   repoId: string,

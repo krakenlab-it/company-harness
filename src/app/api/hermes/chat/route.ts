@@ -5,7 +5,9 @@ import {
   type HermesMessageInput,
 } from "@/lib/hermes/agent";
 import { isCursorCommand } from "@/lib/hermes/cursor-command";
+import { isMarketingCommand } from "@/lib/marketing/marketing-command";
 import { handleHermesCursorCommand } from "@/lib/hermes/handle-cursor-delegation";
+import { handleHermesMarketingCommand } from "@/lib/marketing/handle-marketing-request";
 import { parseComposerMessage } from "@/lib/hermes/composer-tags";
 import { requireAuth, getVisibleRepos, AuthError } from "@/lib/auth";
 import { store } from "@/lib/store/memory-store";
@@ -201,6 +203,37 @@ export async function POST(request: NextRequest) {
             }
           : undefined,
         error: delegation.error,
+        offline: false,
+        context: {
+          ...context,
+          snapshot: buildHarnessContext(session.memberId).slice(0, 500),
+        },
+        status: buildStatusPayload(),
+        messages: toChatMessages(),
+        trackedJobs: trackedAgentJobs(),
+        composerTags,
+        provider: llm.provider,
+        model: llm.model,
+      });
+    }
+
+    if (isMarketingCommand(userText)) {
+      const marketing = await handleHermesMarketingCommand(
+        session,
+        userText,
+        mergedContext.projectId,
+      );
+
+      const context = await buildContextPayload(session.memberId);
+
+      return NextResponse.json({
+        reply: marketing.text,
+        message: marketing.text,
+        content: marketing.text,
+        marketingTask: marketing.task
+          ? { id: marketing.task.id, status: marketing.task.status, title: marketing.task.title }
+          : undefined,
+        error: marketing.error,
         offline: false,
         context: {
           ...context,

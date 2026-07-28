@@ -3,6 +3,7 @@ import { tool } from "ai";
 import { store } from "@/lib/store/memory-store";
 import { PREFERRED_STACK } from "@/lib/guidelines/stack-guidelines";
 import { getVisibleRepos } from "@/lib/auth/permissions";
+import { findProjectForRepo } from "@/lib/projects/link-repo";
 import { DEMO_MEMBER_ID } from "@/lib/auth/config";
 import type { TicketStatus } from "@/lib/types";
 
@@ -100,6 +101,31 @@ export const listAgentJobsSchema = z.object({
     .enum(["queued", "running", "completed", "failed", "cancelled"])
     .optional()
     .describe("Filter by job status"),
+});
+
+export const listMarketingTasksSchema = z.object({
+  status: z
+    .enum(["requested", "in_progress", "review", "done", "cancelled"])
+    .optional()
+    .describe("Filter marketing tasks by status"),
+});
+
+export const createMarketingTaskSchema = z.object({
+  category: z
+    .enum([
+      "landing_page",
+      "ui_redesign",
+      "brand_copy",
+      "social_campaign",
+      "email_campaign",
+      "other",
+    ])
+    .default("other"),
+  title: z.string().describe("Short title for the marketing request"),
+  brief: z.string().describe("What the marketing team should deliver"),
+  projectId: z.string().optional(),
+  targetUrl: z.string().optional(),
+  priority: z.enum(["low", "medium", "high"]).optional(),
 });
 
 export const getGuidelinesSchema = z.object({
@@ -237,12 +263,7 @@ export function createHermesTools(options?: { memberId?: string }) {
         const skipped: string[] = [];
 
         for (const repo of repos) {
-          const project = store.listProjects().find((p) => {
-            if (!p.repoUrl) return false;
-            const a = p.repoUrl.replace(/\.git$/, "").replace(/\/$/, "").toLowerCase();
-            const b = repo.url.replace(/\.git$/, "").replace(/\/$/, "").toLowerCase();
-            return a === b || a.endsWith(`/${repo.name.toLowerCase()}`);
-          });
+          const project = findProjectForRepo(repo);
 
           if (!project) {
             skipped.push(repo.name);
@@ -354,6 +375,49 @@ export function createHermesTools(options?: { memberId?: string }) {
       execute: async ({ status }) => {
         const jobs = store.listAgentJobs();
         return status ? jobs.filter((j) => j.status === status) : jobs;
+      },
+    }),
+    list_marketing_tasks: tool({
+      description:
+        "List marketing team requests (landing pages, UI redesign, copy, campaigns).",
+      inputSchema: listMarketingTasksSchema,
+      execute: async ({ status }) => {
+        const tasks = store.listMarketingTasks({ status });
+        return tasks.map((t) => ({
+          ...t,
+          requester: store.getMember(t.requesterId)?.name,
+          assignee: t.assigneeId
+            ? store.getMember(t.assigneeId)?.name
+            : undefined,
+        }));
+      },
+    }),
+    create_marketing_task: tool({
+      description:
+        "Create a marketing team request when the user wants design, copy, or campaign work.",
+      inputSchema: createMarketingTaskSchema,
+      execute: async (input) => {
+        const task = store.createMarketingTask({
+          title: input.title,
+          brief: input.brief,
+          category: input.category,
+          status: "requested",
+          priority: input.priority ?? "medium",
+          requesterId: memberId ?? DEMO_MEMBER_ID,
+          projectId: input.projectId,
+          targetUrl: input.targetUrl,
+          labels: ["hermes"],
+          source: "hermes",
+        });
+        store.addActivity({
+          projectId: input.projectId,
+          entityType: "marketing_task",
+          entityId: task.id,
+          action: "requested",
+          summary: `Hermes marketing request: ${task.title}`,
+          actorId: memberId ?? DEMO_MEMBER_ID,
+        });
+        return task;
       },
     }),
     get_guidelines: tool({

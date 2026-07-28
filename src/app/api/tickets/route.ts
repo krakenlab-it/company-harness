@@ -3,6 +3,7 @@ import { requireAuth, AuthError } from "@/lib/auth";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
 import type { TicketPriority, TicketStatus } from "@/lib/types";
+import { validateTicketPlacement } from "@/lib/projects/sprint-sync";
 
 function defaultProjectId(): string | undefined {
   const projects = store.listProjects();
@@ -71,6 +72,14 @@ export async function POST(request: NextRequest) {
       return jsonError("No project available — create a project first", 400);
     }
 
+    const placementError = validateTicketPlacement({
+      projectId,
+      sprintId: body.sprintId,
+    });
+    if (placementError) {
+      return jsonError(placementError, 400);
+    }
+
     const ticket = store.createTicket({
       projectId,
       sprintId: body.sprintId,
@@ -109,7 +118,8 @@ export async function PATCH(request: NextRequest) {
       priority?: string;
       title?: string;
       description?: string;
-      sprintId?: string;
+      projectId?: string;
+      sprintId?: string | null;
       assigneeId?: string;
       labels?: string[];
     }>(request);
@@ -118,8 +128,32 @@ export async function PATCH(request: NextRequest) {
       return jsonError("id is required", 400);
     }
 
+    const existing = store.getTicket(body.id);
+    if (!existing) {
+      return jsonError("Ticket not found", 404);
+    }
+
+    const nextProjectId = body.projectId ?? existing.projectId;
+    const nextSprintId =
+      body.sprintId === "" || body.sprintId === null
+        ? undefined
+        : body.sprintId !== undefined
+          ? body.sprintId
+          : existing.sprintId;
+
+    const placementError = validateTicketPlacement({
+      projectId: nextProjectId,
+      sprintId: nextSprintId,
+    });
+    if (placementError) {
+      return jsonError(placementError, 400);
+    }
+
     const patch: Record<string, unknown> = { ...body };
     delete patch.id;
+    if (body.sprintId === "" || body.sprintId === null) {
+      patch.sprintId = undefined;
+    }
     if (body.priority) {
       patch.priority = mapPriority(body.priority);
     }

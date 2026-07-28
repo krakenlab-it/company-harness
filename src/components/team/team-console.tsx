@@ -48,7 +48,7 @@ interface ProjectOption {
   name: string;
 }
 
-const ROLES = ["admin", "lead", "dev", "viewer"] as const;
+const ROLES = ["admin", "lead", "dev", "marketing", "viewer"] as const;
 
 export function TeamConsole() {
   const [members, setMembers] = useState<TeamMember[]>([]);

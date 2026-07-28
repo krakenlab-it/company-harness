@@ -4,11 +4,15 @@ import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
 import { slugify } from "@/lib/utils";
 import type { ProjectStatus } from "@/lib/types";
+import {
+  enrichProjectWithRepo,
+  resolveProjectRepoLink,
+} from "@/lib/projects/link-repo";
 
 export async function GET() {
   try {
     await requireAuth();
-    const projects = store.listProjects();
+    const projects = store.listProjects().map(enrichProjectWithRepo);
     return NextResponse.json({ projects });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -31,11 +35,20 @@ export async function POST(request: NextRequest) {
       targetDate?: string;
       progress?: number;
       repoUrl?: string;
+      repoId?: string;
       stack?: string[];
     }>(request);
 
     if (!body?.name?.trim()) {
       return jsonError("name is required", 400);
+    }
+
+    const repoLink = resolveProjectRepoLink({
+      repoId: body.repoId,
+      repoUrl: body.repoUrl,
+    });
+    if ("error" in repoLink) {
+      return jsonError(repoLink.error, 400);
     }
 
     const now = new Date();
@@ -50,7 +63,8 @@ export async function POST(request: NextRequest) {
       startDate: body.startDate ?? now.toISOString().slice(0, 10),
       targetDate: body.targetDate ?? defaultTarget.toISOString().slice(0, 10),
       progress: body.progress ?? 0,
-      repoUrl: body.repoUrl,
+      repoId: repoLink.repoId,
+      repoUrl: repoLink.repoUrl,
       stack: body.stack ?? [],
     });
 
@@ -59,10 +73,13 @@ export async function POST(request: NextRequest) {
       entityId: project.id,
       projectId: project.id,
       action: "created",
-      summary: `Created project: ${project.name}`,
+      summary: `Created project: ${project.name} → ${repoLink.repoUrl}`,
     });
 
-    return NextResponse.json({ project }, { status: 201 });
+    return NextResponse.json(
+      { project: enrichProjectWithRepo(project) },
+      { status: 201 },
+    );
   } catch (error) {
     if (error instanceof AuthError) {
       return jsonError(error.message, error.status);

@@ -3,9 +3,20 @@ export type GitHubActivityKind =
   | "pr_opened"
   | "pr_closed"
   | "pr_merged"
+  | "issue_opened"
+  | "issue_closed"
+  | "issue_comment"
   | "workflow_success"
   | "workflow_failure"
   | "workflow_cancelled";
+
+export type GitHubActivityTab =
+  | "all"
+  | "prs"
+  | "issues"
+  | "comments"
+  | "checks"
+  | "updates";
 
 export interface GitHubActivityEvent {
   id: string;
@@ -17,6 +28,11 @@ export interface GitHubActivityEvent {
   branch?: string;
   sha?: string;
   occurredAt: string;
+  owner?: string;
+  repo?: string;
+  prNumber?: number;
+  issueNumber?: number;
+  commentPreview?: string;
 }
 
 export interface GitHubActivityFeed {

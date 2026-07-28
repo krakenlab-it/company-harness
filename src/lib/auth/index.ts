@@ -11,6 +11,9 @@ export {
   canManageAccess,
   hasAnyAgentsPermission,
   memberCanDelegate,
+  canAccessMarketing,
+  canRequestMarketingTasks,
+  canManageMarketingTasks,
   AuthError,
 } from "@/lib/auth/permissions";
 export { withAuth, handleAuthError, blockHermesDelegation } from "@/lib/auth/api";

@@ -36,6 +36,13 @@ export const seedData: HarnessSnapshot = {
       role: "viewer",
       createdAt: weekAgo,
     },
+    {
+      id: "member_riley",
+      name: "Riley Chen",
+      email: "riley@krakenlab.media",
+      role: "marketing",
+      createdAt: weekAgo,
+    },
   ],
 
   projects: [
@@ -54,6 +61,7 @@ export const seedData: HarnessSnapshot = {
       startDate: "2026-05-01",
       targetDate: "2026-08-15",
       progress: 62,
+      repoId: "repo_harness",
       repoUrl: "https://github.com/krakenlab/harness",
       stack: ["Next.js", "Supabase", "Groq", "Tailwind", "trigger.dev"],
       createdAt: monthAgo,
@@ -74,6 +82,7 @@ export const seedData: HarnessSnapshot = {
       startDate: "2026-04-10",
       targetDate: "2026-09-30",
       progress: 45,
+      repoId: "repo_pulse",
       repoUrl: "https://github.com/krakenlab/pulse-analytics",
       stack: ["Next.js", "Supabase", "Redis", "Stripe", "Vercel"],
       createdAt: monthAgo,
@@ -94,6 +103,7 @@ export const seedData: HarnessSnapshot = {
       startDate: "2026-07-01",
       targetDate: "2026-11-01",
       progress: 12,
+      repoId: "repo_inkwell",
       repoUrl: "https://github.com/krakenlab/inkwell-cms",
       stack: ["Next.js", "Supabase", "OpenRouter", "AI SDK", "Resend"],
       createdAt: weekAgo,
@@ -115,6 +125,7 @@ export const seedData: HarnessSnapshot = {
         "ticket_hermes_tools",
         "ticket_harness_ui",
         "ticket_cost_rollup",
+        "ticket_cursor_delegate",
       ],
     },
     {
@@ -234,6 +245,7 @@ export const seedData: HarnessSnapshot = {
     {
       id: "ticket_cursor_delegate",
       projectId: "proj_harness",
+      sprintId: "sprint_harness_3",
       title: "Cursor agent delegation API",
       description: "POST to Cursor API with local queue fallback.",
       status: "in_progress",
@@ -577,6 +589,14 @@ export const seedData: HarnessSnapshot = {
       budgetUsdMonthly: 100,
       enabled: true,
     },
+    {
+      id: "repo_inkwell",
+      name: "krakenlab/inkwell-cms",
+      url: "https://github.com/krakenlab/inkwell-cms",
+      allowedActions: ["read", "write"],
+      budgetUsdMonthly: 50,
+      enabled: true,
+    },
   ],
 
   budgets: [
@@ -684,4 +704,39 @@ export const seedData: HarnessSnapshot = {
     },
   ],
   delegationAudits: [],
+
+  marketingTasks: [
+    {
+      id: "mkt_landing_harness",
+      title: "Harness homepage hero refresh",
+      brief:
+        "Update the public landing hero so non-technical leaders understand Company OS value in one glance. Mobile-first; keep KrakenLab teal palette.",
+      category: "landing_page",
+      status: "in_progress",
+      priority: "high",
+      requesterId: "member_alex",
+      assigneeId: "member_riley",
+      projectId: "proj_harness",
+      targetUrl: "https://krakenlab.media",
+      labels: ["landing-page", "web"],
+      source: "marketing_ui",
+      createdAt: weekAgo,
+      updatedAt: now,
+    },
+    {
+      id: "mkt_repo_ux",
+      title: "Repo page — friendlier labels for ops team",
+      brief:
+        "Review repo activity feed copy and tooltips. Ensure 'change request' and 'automated checks' language reads well for non-developers.",
+      category: "ui_redesign",
+      status: "requested",
+      priority: "medium",
+      requesterId: "member_sam",
+      projectId: "proj_harness",
+      labels: ["ui", "design"],
+      source: "api",
+      createdAt: now,
+      updatedAt: now,
+    },
+  ],
 };
