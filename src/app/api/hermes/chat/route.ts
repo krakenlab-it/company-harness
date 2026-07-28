@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  isHermesConfigured,
   runHermes,
   buildHarnessContext,
   type HermesMessageInput,
 } from "@/lib/hermes/agent";
 import { isCursorCommand } from "@/lib/hermes/cursor-command";
 import { handleHermesCursorCommand } from "@/lib/hermes/handle-cursor-delegation";
+import { parseComposerMessage } from "@/lib/hermes/composer-tags";
 import { requireAuth, getVisibleRepos, AuthError } from "@/lib/auth";
 import { store } from "@/lib/store/memory-store";
 import { syncRunningAgentJobs } from "@/lib/cursor/client";
-import { getHermesGroqModel } from "@/lib/hermes/config";
 import { getHermesConnectionStatus } from "@/lib/hermes/status";
-import {
-  checkHermesRateLimit,
-} from "@/lib/hermes/rate-limit";
+import { checkHermesRateLimit } from "@/lib/hermes/rate-limit";
 import { getHermesRateLimitRpm } from "@/lib/hermes/config";
+import { resolveProviderModel } from "@/lib/hermes/providers";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
+import type { HermesComposerTagMeta } from "@/lib/types";
 
 export const maxDuration = 120;
 
@@ -30,8 +29,25 @@ function toChatMessages() {
       content: m.content,
       contextType: m.contextType,
       contextId: m.contextId,
+      composerTags: m.composerTags,
       createdAt: m.createdAt,
     }));
+}
+
+function buildStatusPayload() {
+  const connection = getHermesConnectionStatus();
+  return {
+    configured: connection.configured,
+    offline: connection.offline,
+    hint: connection.hint,
+    defaultProvider: connection.defaultProvider,
+    defaultModel: connection.defaultModel,
+    providers: connection.providers,
+    groqAvailable: connection.groqAvailable,
+    nvidiaAvailable: connection.nvidiaAvailable,
+    // legacy field
+    groqModel: connection.defaultModel,
+  };
 }
 
 function trackedAgentJobs() {
@@ -88,12 +104,7 @@ export async function GET() {
       messages,
       trackedJobs: trackedAgentJobs(),
       context,
-      status: {
-        configured: connection.configured,
-        offline: connection.offline,
-        groqModel: connection.groqModel ?? getHermesGroqModel(),
-        hint: connection.hint,
-      },
+      status: buildStatusPayload(),
     });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -112,6 +123,8 @@ export async function POST(request: NextRequest) {
       messages?: HermesMessageInput[];
       message?: string;
       repo?: string;
+      provider?: string;
+      model?: string;
       context?: {
         projectId?: string;
         ticketId?: string;
@@ -124,7 +137,6 @@ export async function POST(request: NextRequest) {
       return jsonError("Invalid JSON body", 400);
     }
 
-    const scopedRepo = body.repo?.trim() || null;
     let userText = "";
 
     if (body.message?.trim()) {
@@ -144,6 +156,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const parsed = parseComposerMessage(userText);
+    const scopedRepo =
+      body.repo?.trim() ||
+      parsed.scopedRepo ||
+      null;
+
+    const llm = resolveProviderModel(
+      body.provider ?? getHermesConnectionStatus().defaultProvider,
+      body.model,
+    );
+
+    const composerTags: HermesComposerTagMeta[] = parsed.tags.map((t) => ({
+      kind: t.kind,
+      value: t.value,
+      label: t.label,
+    }));
+
+    const mergedContext = {
+      ...body.context,
+      projectId: body.context?.projectId ?? parsed.projectId,
+      ticketId: body.context?.ticketId ?? parsed.ticketId,
+    };
+
     if (isCursorCommand(userText)) {
       const delegation = await handleHermesCursorCommand(
         session,
@@ -152,7 +187,6 @@ export async function POST(request: NextRequest) {
       );
 
       const context = await buildContextPayload(session.memberId);
-      const connection = getHermesConnectionStatus();
 
       return NextResponse.json({
         reply: delegation.text,
@@ -172,14 +206,12 @@ export async function POST(request: NextRequest) {
           ...context,
           snapshot: buildHarnessContext(session.memberId).slice(0, 500),
         },
-        status: {
-          configured: connection.configured,
-          offline: connection.offline,
-          groqModel: connection.groqModel,
-          hint: connection.hint,
-        },
+        status: buildStatusPayload(),
         messages: toChatMessages(),
         trackedJobs: trackedAgentJobs(),
+        composerTags,
+        provider: llm.provider,
+        model: llm.model,
       });
     }
 
@@ -200,12 +232,14 @@ export async function POST(request: NextRequest) {
 
     const result = await runHermes({
       messages,
-      context: body.context,
+      context: mergedContext,
       memberId: session.memberId,
+      provider: llm.provider,
+      model: llm.model,
+      composerTags,
     });
 
     const context = await buildContextPayload(session.memberId);
-    const connection = getHermesConnectionStatus();
 
     return NextResponse.json({
       reply: result.text,
@@ -214,16 +248,14 @@ export async function POST(request: NextRequest) {
       toolResults: result.toolResults,
       steps: result.steps,
       offline: result.offline,
+      provider: result.provider ?? llm.provider,
+      model: result.model ?? llm.model,
+      composerTags,
       context: {
         ...context,
         snapshot: buildHarnessContext(session.memberId).slice(0, 500),
       },
-      status: {
-        configured: connection.configured,
-        offline: result.offline ?? connection.offline,
-        groqModel: connection.groqModel ?? getHermesGroqModel(),
-        hint: connection.hint,
-      },
+      status: buildStatusPayload(),
       messages: toChatMessages(),
       trackedJobs: trackedAgentJobs(),
     });

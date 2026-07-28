@@ -8,6 +8,17 @@ import { Panel } from "@/components/ui/panel";
 import { Badge } from "@/components/ui/badge";
 import { CursorJobCard, type TrackedJob } from "@/components/hermes/cursor-job-card";
 import { MarkdownMessage } from "@/components/hermes/markdown-message";
+import { ComposerInput } from "@/components/hermes/composer-input";
+import {
+  HermesModelSelector,
+  loadStoredModelSelection,
+  persistModelSelection,
+  type ModelSelectorValue,
+} from "@/components/hermes/model-selector";
+import { MessageTagStrip } from "@/components/hermes/message-tag-strip";
+import { COMPOSER_TAG_HELP } from "@/lib/hermes/composer-tags";
+import type { HermesComposerTagMeta } from "@/lib/types";
+import type { HermesProviderId } from "@/lib/hermes/providers";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -16,14 +27,20 @@ interface Message {
   content: string;
   contextType?: string;
   contextId?: string;
+  composerTags?: HermesComposerTagMeta[];
   createdAt?: string;
 }
 
 interface HermesStatus {
   configured: boolean;
   offline: boolean;
-  groqModel?: string;
   hint?: string;
+  defaultProvider?: HermesProviderId;
+  defaultModel?: string;
+  groqAvailable?: boolean;
+  nvidiaAvailable?: boolean;
+  groqModel?: string;
+  providers?: Array<{ id: HermesProviderId; label: string }>;
 }
 
 interface HermesContext {
@@ -51,8 +68,12 @@ export function HermesChat() {
     configured: true,
     offline: false,
   });
+  const [modelSelection, setModelSelection] = useState<ModelSelectorValue>({
+    provider: "nvidia",
+    model: "z-ai/glm-5.2",
+  });
   const bottomRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const modelInitRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -64,9 +85,23 @@ export function HermesChat() {
       setStatus({
         configured: s.configured ?? true,
         offline: s.offline ?? false,
-        groqModel: s.groqModel,
         hint: s.hint,
+        defaultProvider: s.defaultProvider,
+        defaultModel: s.defaultModel,
+        groqAvailable: s.groqAvailable,
+        nvidiaAvailable: s.nvidiaAvailable,
+        groqModel: s.groqModel,
+        providers: s.providers,
       });
+      if (!modelInitRef.current && s.defaultProvider && s.defaultModel) {
+        modelInitRef.current = true;
+        setModelSelection(
+          loadStoredModelSelection({
+            provider: s.defaultProvider,
+            model: s.defaultModel,
+          }),
+        );
+      }
     }
     if (Array.isArray(data?.messages)) {
       setMessages(data.messages as Message[]);
@@ -111,11 +146,8 @@ export function HermesChat() {
   }, [trackedJobs, context.activeAgents, refreshChat]);
 
   useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, [input]);
+    persistModelSelection(modelSelection);
+  }, [modelSelection]);
 
   async function handleSend(e?: React.FormEvent) {
     e?.preventDefault();
@@ -142,6 +174,8 @@ export function HermesChat() {
           message: text,
           channel: "in-app",
           repo: scopedRepo ?? undefined,
+          provider: modelSelection.provider,
+          model: modelSelection.model,
         }),
       });
 
@@ -164,22 +198,34 @@ export function HermesChat() {
     }
   }
 
+  const availableProviders = [
+    status.nvidiaAvailable && "nvidia",
+    status.groqAvailable && "groq",
+  ].filter(Boolean) as HermesProviderId[];
+
   const jobsById = new Map(trackedJobs.map((j) => [j.id, j]));
 
   return (
     <div className="flex h-[calc(100dvh-7rem)] flex-col gap-3 md:h-[calc(100dvh-5.5rem)]">
       <header className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-        <div className="flex items-center gap-2 mr-auto">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-bright/10 text-teal-bright">
+        <div className="flex items-center gap-2 mr-auto min-w-0">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-bright/10 text-teal-bright shrink-0">
             <Sparkles className="h-4 w-4" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-foam">Hermes</p>
-            <p className="text-[11px] text-mist">
-              Groq-powered harness assistant
+            <p className="text-[11px] text-mist truncate">
+              NVIDIA NIM · Groq · composer tags
             </p>
           </div>
         </div>
+        <HermesModelSelector
+          value={modelSelection}
+          onChange={setModelSelection}
+          availableProviders={
+            availableProviders.length > 0 ? availableProviders : undefined
+          }
+        />
         {scopedRepo && (
           <Badge variant="teal">Repo: {scopedRepo}</Badge>
         )}
@@ -190,9 +236,12 @@ export function HermesChat() {
           <Badge variant="warn" title={status.hint}>
             Demo mode
           </Badge>
-        ) : status.groqModel ? (
-          <Badge variant="ok">{status.groqModel}</Badge>
-        ) : null}
+        ) : (
+          <Badge variant="ok">
+            {modelSelection.provider === "nvidia" ? "NIM" : "Groq"} ·{" "}
+            {modelSelection.model.split("/").pop()}
+          </Badge>
+        )}
       </header>
       {status.offline && status.hint && (
         <p className="text-xs text-mist -mt-1 px-1">{status.hint}</p>
@@ -287,7 +336,10 @@ export function HermesChat() {
                     )}
                   >
                     {isUser ? (
-                      <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                      <>
+                        <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                        <MessageTagStrip tags={msg.composerTags} />
+                      </>
                     ) : (
                       <MarkdownMessage content={msg.content} />
                     )}
@@ -330,22 +382,18 @@ export function HermesChat() {
           className="border-t border-[var(--border)] p-4 bg-[var(--surface)]"
         >
           <div className="mx-auto max-w-3xl prompt-composer flex items-end gap-2 p-2 pl-4">
-            <textarea
-              ref={textareaRef}
+            <ComposerInput
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Message Hermes — @cursor to delegate (admin/lead)"
-              rows={1}
-              className="flex-1 resize-none bg-transparent py-2 text-sm text-foam placeholder:text-sand outline-none min-h-[28px] max-h-[160px]"
+              onChange={setInput}
               disabled={sending}
-              aria-busy={sending}
+              placeholder="Message Hermes — @cursor · @repo org/name · /ticket · /pr"
+              aria-label="Message input"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   handleSend();
                 }
               }}
-              aria-label="Message input"
             />
             <Button
               type="submit"
@@ -361,8 +409,25 @@ export function HermesChat() {
               )}
             </Button>
           </div>
-          <p className="mx-auto max-w-3xl mt-2 text-[10px] text-sand text-center">
-            Enter to send · Shift+Enter for newline · Markdown supported in replies
+          <div className="mx-auto max-w-3xl mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 px-2">
+            {COMPOSER_TAG_HELP.map((item) => (
+              <button
+                key={item.token}
+                type="button"
+                onClick={() =>
+                  setInput((prev) =>
+                    prev ? `${prev} ${item.token}` : item.token,
+                  )
+                }
+                className="text-[10px] text-sand hover:text-teal-bright transition-colors"
+                title={item.desc}
+              >
+                <span className="font-mono text-foam/80">{item.token}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mx-auto max-w-3xl mt-1 text-[10px] text-sand text-center">
+            Enter to send · Shift+Enter newline · tags highlight like Cursor composer
           </p>
         </form>
       </Panel>

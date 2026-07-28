@@ -24,7 +24,27 @@ The harness uses an **OpenAI editorial** light theme (white canvas, black text, 
 
 When changing styling, preserve both the light aesthetic and the loop navigation / repo-scoped `?repo=` handoffs.
 
-### Hermes / Groq API key
+### Hermes / LLM providers
+
+Hermes supports **NVIDIA NIM** (default model `z-ai/glm-5.2`) and **Groq**.
+
+**Keys (server-only, never commit):**
+
+```bash
+NVIDIA_API_KEY=nvapi_...
+GROQ_API_KEY=gsk_...
+HERMES_DEFAULT_PROVIDER=nvidia   # or groq
+NVIDIA_MODEL=z-ai/glm-5.2
+GROQ_MODEL=openai/gpt-oss-120b
+```
+
+**Common trap:** empty `NVIDIA_API_KEY=` or `GROQ_API_KEY=` in `.env.local` overrides Cloud secrets.
+
+Confirm: `GET /api/hermes/status` → `nvidiaKeyPresent` / `groqKeyPresent`.
+
+Composer tags in Hermes chat: `@cursor`, `@repo org/name`, `/ticket`, `/pr`, `/project`.
+
+### Hermes / Groq API key (legacy note)
 
 Hermes uses **`GROQ_API_KEY`** (server-only, not `NEXT_PUBLIC_`).
 

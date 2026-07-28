@@ -1,6 +1,38 @@
 # Hermes
 
-Hermes is the harness **AI assistant** powered by **Groq** (via Vercel AI SDK). It reads live harness context, calls tools, manages tickets, and (for admin/lead) launches **Cursor Cloud Agents** via `@cursor`.
+Hermes is the harness **AI assistant** (NVIDIA NIM or Groq via Vercel AI SDK). It reads live harness context, calls tools, manages tickets, and (for admin/lead) launches **Cursor Cloud Agents** via `@cursor`.
+
+## LLM providers
+
+| Provider | Default model | Env key |
+|----------|---------------|---------|
+| **NVIDIA NIM** | `z-ai/glm-5.2` | `NVIDIA_API_KEY` |
+| **Groq** | `openai/gpt-oss-120b` | `GROQ_API_KEY` |
+
+Use the **model selector** in the Hermes header, or pass `provider` + `model` on POST `/api/hermes/chat`.
+
+Other NVIDIA models in the UI: Kimi K2 (`moonshotai/kimi-k2-instruct`, `moonshotai/kimi-k2-thinking`), Nemotron 3 Ultra, GLM 4.7.
+
+```bash
+NVIDIA_API_KEY=nvapi_...
+NVIDIA_MODEL=z-ai/glm-5.2
+GROQ_API_KEY=gsk_...
+HERMES_DEFAULT_PROVIDER=nvidia   # or groq
+```
+
+Endpoint: `https://integrate.api.nvidia.com/v1` (OpenAI-compatible). **Never commit API keys** — use `.env.local` or Cursor Environment secrets.
+
+## Composer tags (Cursor-style)
+
+| Token | Purpose |
+|-------|---------|
+| `@cursor` | Delegate to Cursor Cloud Agent |
+| `@repo org/name` | Scope to a repository |
+| `/ticket tkt_…` | Link a harness ticket |
+| `/pr 42` | Reference a pull request |
+| `/project proj_…` | Scope to a project |
+
+Tags highlight in the composer and appear as chips on sent messages.
 
 ## Groq setup
 
@@ -47,7 +79,9 @@ POST body:
 ```json
 {
   "message": "Summarize open tickets",
-  "repo": "krakenlab/harness"
+  "repo": "krakenlab/harness",
+  "provider": "nvidia",
+  "model": "z-ai/glm-5.2"
 }
 ```
 
