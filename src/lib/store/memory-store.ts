@@ -585,6 +585,13 @@ class MemoryStore {
     return this.create(this.state.projectAssignments, assignment);
   }
 
+  updateProjectAssignment(
+    id: string,
+    patch: Partial<ProjectAssignment>,
+  ): ProjectAssignment | undefined {
+    return this.update(this.state.projectAssignments, id, patch);
+  }
+
   getMemberByEmail(email: string): TeamMember | undefined {
     return clone(
       this.state.members.find(

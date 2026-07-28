@@ -1,7 +1,14 @@
-import type { RepoAction, TeamMember, TeamMemberRole, TeamRepo } from "@/lib/types";
+import type {
+  MemberViewSettings,
+  RepoAction,
+  TeamMember,
+  TeamMemberRole,
+  TeamRepo,
+} from "@/lib/types";
 import { store } from "@/lib/store/memory-store";
 import { DEMO_MEMBER_ID, isDemoMode } from "@/lib/auth/config";
 import { createClient } from "@/lib/supabase/server";
+import { resolveMemberViewSettings } from "@/lib/team/invite-modes";
 
 export interface HarnessSession {
   authUserId: string | null;
@@ -88,7 +95,28 @@ export function memberCanDelegate(session: HarnessSession): boolean {
   return session.role === "admin" || session.role === "lead";
 }
 
+export function canManageAccess(session: HarnessSession): boolean {
+  return session.role === "admin";
+}
+
+export function getSessionViewSettings(
+  session: HarnessSession,
+): MemberViewSettings {
+  return resolveMemberViewSettings(session.member);
+}
+
+export function canViewNavArea(
+  session: HarnessSession,
+  area: keyof MemberViewSettings,
+): boolean {
+  const settings = getSessionViewSettings(session);
+  return settings[area];
+}
+
 export function canAccessMarketing(session: HarnessSession): boolean {
+  if (!canViewNavArea(session, "marketing")) {
+    return false;
+  }
   return (
     session.role === "admin" ||
     session.role === "lead" ||
@@ -186,16 +214,20 @@ export function filterByVisibleRepos<T extends { repoUrl?: string; url?: string;
 }
 
 export function canAccessIntegrations(session: HarnessSession): boolean {
+  if (!canViewNavArea(session, "integrations")) {
+    return false;
+  }
   return session.role === "admin" || session.role === "lead";
-}
-
-export function canManageAccess(session: HarnessSession): boolean {
-  return session.role === "admin";
 }
 
 export function hasAnyAgentsPermission(memberId: string): boolean {
   const member = store.getMember(memberId);
-  if (member?.role === "admin" || member?.role === "lead") {
+  if (!member) return false;
+
+  const viewSettings = resolveMemberViewSettings(member);
+  if (!viewSettings.agents) return false;
+
+  if (member.role === "admin" || member.role === "lead") {
     return getVisibleRepos(memberId).some((repo) =>
       memberHasRepoAccess(memberId, repo.url, "agents"),
     );

@@ -16,43 +16,74 @@ import {
 import { cn } from "@/lib/utils";
 import { Suspense } from "react";
 import { RepoSelector } from "@/components/layout/repo-selector";
+import type { MemberViewSettings } from "@/lib/types";
 
 interface SessionInfo {
+  viewSettings: MemberViewSettings;
   canDelegate: boolean;
   canAccessIntegrations: boolean;
   canAccessMarketing: boolean;
 }
+
+const defaultViewSettings: MemberViewSettings = {
+  commandCenter: true,
+  repos: true,
+  work: true,
+  marketing: true,
+  hermes: true,
+  agents: true,
+  integrations: true,
+  team: true,
+};
 
 const baseNavItems: {
   href: string;
   label: string;
   icon: typeof LayoutDashboard;
   exact?: boolean;
-  requires?: keyof SessionInfo;
+  viewKey: keyof MemberViewSettings;
+  requires?: keyof Pick<
+    SessionInfo,
+    "canDelegate" | "canAccessIntegrations" | "canAccessMarketing"
+  >;
 }[] = [
-  { href: "/", label: "Command Center", icon: LayoutDashboard, exact: true },
-  { href: "/repos", label: "Repos", icon: GitBranch },
-  { href: "/work", label: "Work", icon: FolderKanban },
+  {
+    href: "/",
+    label: "Command Center",
+    icon: LayoutDashboard,
+    exact: true,
+    viewKey: "commandCenter",
+  },
+  { href: "/repos", label: "Repos", icon: GitBranch, viewKey: "repos" },
+  { href: "/work", label: "Work", icon: FolderKanban, viewKey: "work" },
   {
     href: "/marketing",
     label: "Marketing",
     icon: Megaphone,
+    viewKey: "marketing",
     requires: "canAccessMarketing",
   },
-  { href: "/hermes", label: "Hermes", icon: MessageSquare },
+  { href: "/hermes", label: "Hermes", icon: MessageSquare, viewKey: "hermes" },
   {
     href: "/agents",
     label: "Agents",
     icon: Bot,
+    viewKey: "agents",
     requires: "canDelegate",
   },
   {
     href: "/integrations",
     label: "Connect",
     icon: Plug,
+    viewKey: "integrations",
     requires: "canAccessIntegrations",
   },
-  { href: "/team", label: "Team & Access", icon: UserCog },
+  {
+    href: "/team",
+    label: "Team & Access",
+    icon: UserCog,
+    viewKey: "team",
+  },
 ];
 
 function isActive(pathname: string, href: string, exact?: boolean) {
@@ -109,9 +140,11 @@ function NavLinks({
   session: SessionInfo;
 }) {
   const pathname = usePathname();
-  const navItems = baseNavItems.filter(
-    (item) => !item.requires || session[item.requires],
-  );
+  const navItems = baseNavItems.filter((item) => {
+    if (!session.viewSettings[item.viewKey]) return false;
+    if (item.requires && !session[item.requires]) return false;
+    return true;
+  });
 
   return (
     <nav
@@ -146,6 +179,7 @@ function NavLinks({
 
 export function Sidebar() {
   const [session, setSession] = useState<SessionInfo>({
+    viewSettings: defaultViewSettings,
     canDelegate: true,
     canAccessIntegrations: true,
     canAccessMarketing: true,
@@ -157,6 +191,7 @@ export function Sidebar() {
       .then((data) => {
         if (data) {
           setSession({
+            viewSettings: data.viewSettings ?? defaultViewSettings,
             canDelegate: data.canDelegate ?? false,
             canAccessIntegrations: data.canAccessIntegrations ?? false,
             canAccessMarketing: data.canAccessMarketing ?? false,
@@ -166,6 +201,9 @@ export function Sidebar() {
       .catch(() => {});
   }, []);
 
+  const showRepoFilter =
+    session.viewSettings.repos || session.viewSettings.work;
+
   return (
     <>
       <aside className="hidden md:flex md:w-56 lg:w-52 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--canvas)]">
@@ -174,14 +212,16 @@ export function Sidebar() {
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
           <NavLinks orientation="vertical" session={session} />
-          <div className="pt-3 border-t border-[var(--border-subtle)] px-1">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-mist mb-2 px-2">
-              Repo filter
-            </p>
-            <Suspense fallback={null}>
-              <RepoSelector className="w-full" />
-            </Suspense>
-          </div>
+          {showRepoFilter && (
+            <div className="pt-3 border-t border-[var(--border-subtle)] px-1">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-mist mb-2 px-2">
+                Repo filter
+              </p>
+              <Suspense fallback={null}>
+                <RepoSelector className="w-full" />
+              </Suspense>
+            </div>
+          )}
         </div>
         <div className="border-t border-[var(--border-subtle)] px-4 py-3 space-y-1">
           <Link
