@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { GripVertical, Loader2, Plus, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,19 @@ interface TicketItem {
   status: TicketStatus;
   priority?: string;
   projectId?: string;
+  sprintId?: string;
+}
+
+interface ProjectOption {
+  id: string;
+  name: string;
+  slug?: string;
+}
+
+interface SprintOption {
+  id: string;
+  name: string;
+  status: string;
 }
 
 const COLUMNS: { id: TicketStatus; label: string }[] = [
@@ -43,9 +57,22 @@ const priorityVariant: Record<
   medium: "teal",
   high: "warn",
   urgent: "danger",
+  critical: "danger",
 };
 
-export function TicketBoard() {
+interface TicketBoardProps {
+  initialProjectId?: string;
+  initialSprintId?: string;
+}
+
+export function TicketBoard({
+  initialProjectId,
+  initialSprintId,
+}: TicketBoardProps) {
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [sprints, setSprints] = useState<SprintOption[]>([]);
+  const [projectId, setProjectId] = useState(initialProjectId ?? "");
+  const [sprintId, setSprintId] = useState(initialSprintId ?? "");
   const [tickets, setTickets] = useState<TicketItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,30 +84,87 @@ export function TicketBoard() {
     description: "",
     status: "backlog" as TicketStatus,
     priority: "medium",
+    sprintId: "",
   });
 
-  async function loadTickets() {
+  const selectedProject = useMemo(
+    () => projects.find((p) => p.id === projectId),
+    [projects, projectId],
+  );
+
+  const loadProjects = useCallback(async () => {
+    const res = await fetch("/api/projects");
+    if (!res.ok) throw new Error("Failed to load projects");
+    const data = await res.json();
+    const list = data.projects ?? [];
+    setProjects(list);
+    if (!projectId && list.length > 0) {
+      const preferred =
+        list.find((p: ProjectOption) => p.id === initialProjectId) ??
+        list.find((p: { status?: string }) => p.status === "active") ??
+        list[0];
+      setProjectId(preferred.id);
+    }
+  }, [projectId, initialProjectId]);
+
+  const loadSprints = useCallback(async (pid: string) => {
+    if (!pid) {
+      setSprints([]);
+      return;
+    }
+    const res = await fetch(`/api/sprints?projectId=${encodeURIComponent(pid)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setSprints(data.sprints ?? []);
+  }, []);
+
+  const loadTickets = useCallback(async () => {
+    if (!projectId) {
+      setTickets([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/tickets");
+      const params = new URLSearchParams({ projectId });
+      if (sprintId === "backlog") {
+        /* fetch all, filter client-side for no sprint */
+      } else if (sprintId) {
+        params.set("sprintId", sprintId);
+      }
+      const res = await fetch(`/api/tickets?${params}`);
       if (!res.ok) throw new Error(`Failed to load tickets (${res.status})`);
       const data = await res.json();
-      setTickets(data.tickets ?? data ?? []);
+      let list = data.tickets ?? [];
+      if (sprintId === "backlog") {
+        list = list.filter((t: TicketItem) => !t.sprintId);
+      }
+      setTickets(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load tickets");
     } finally {
       setLoading(false);
     }
-  }
+  }, [projectId, sprintId]);
 
   useEffect(() => {
-    loadTickets();
-  }, []);
+    void loadProjects().catch((err) =>
+      setError(err instanceof Error ? err.message : "Failed to load"),
+    );
+  }, [loadProjects]);
+
+  useEffect(() => {
+    if (projectId) void loadSprints(projectId);
+  }, [projectId, loadSprints]);
+
+  useEffect(() => {
+    void loadTickets();
+  }, [loadTickets]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.title.trim()) return;
+    if (!form.title.trim() || !projectId) return;
 
     setSubmitting(true);
     try {
@@ -92,10 +176,21 @@ export function TicketBoard() {
           description: form.description.trim() || undefined,
           status: form.status,
           priority: form.priority,
+          projectId,
+          sprintId: form.sprintId || undefined,
         }),
       });
-      if (!res.ok) throw new Error(`Failed to create ticket (${res.status})`);
-      setForm({ title: "", description: "", status: "backlog", priority: "medium" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Failed to create ticket (${res.status})`);
+      }
+      setForm({
+        title: "",
+        description: "",
+        status: "backlog",
+        priority: "medium",
+        sprintId: "",
+      });
       setShowForm(false);
       await loadTickets();
     } catch (err) {
@@ -124,7 +219,28 @@ export function TicketBoard() {
     }
   }
 
-  if (loading) {
+  async function changeSprint(ticketId: string, nextSprintId: string) {
+    setUpdating(ticketId);
+    try {
+      const res = await fetch("/api/tickets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: ticketId,
+          sprintId: nextSprintId || "",
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Failed to update sprint");
+      await loadTickets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update sprint");
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  if (loading && projects.length === 0) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-teal-bright" />
@@ -132,13 +248,69 @@ export function TicketBoard() {
     );
   }
 
+  if (projects.length === 0) {
+    return (
+      <EmptyState
+        icon={Ticket}
+        title="Create a project first"
+        description="Tickets belong to a project (and optionally a sprint). Link a project to a repo on the Projects tab."
+        action={
+          <Link href="/work?tab=projects" className="btn btn-sm btn-primary">
+            Go to Projects
+          </Link>
+        }
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-up">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-[200px] flex-1">
+          <Select
+            label="Project"
+            value={projectId}
+            onChange={(e) => {
+              setProjectId(e.target.value);
+              setSprintId("");
+            }}
+            options={projects.map((p) => ({
+              value: p.id,
+              label: p.name,
+            }))}
+          />
+        </div>
+        <div className="min-w-[200px] flex-1">
+          <Select
+            label="Sprint filter"
+            value={sprintId}
+            onChange={(e) => setSprintId(e.target.value)}
+            options={[
+              { value: "", label: "All tickets in project" },
+              { value: "backlog", label: "Backlog (no sprint)" },
+              ...sprints.map((s) => ({
+                value: s.id,
+                label: `${s.name} (${s.status})`,
+              })),
+            ]}
+          />
+        </div>
+        {selectedProject && (
+          <Link
+            href={`/projects/${selectedProject.slug ?? selectedProject.id}`}
+            className="text-xs text-teal-bright hover:underline pb-2"
+          >
+            Project detail →
+          </Link>
+        )}
+      </div>
+
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-mist">
           {tickets.length} ticket{tickets.length !== 1 ? "s" : ""}
+          {selectedProject ? ` · ${selectedProject.name}` : ""}
         </p>
-        <Button size="sm" onClick={() => setShowForm(!showForm)}>
+        <Button size="sm" onClick={() => setShowForm(!showForm)} disabled={!projectId}>
           <Plus className="h-4 w-4" />
           New ticket
         </Button>
@@ -154,7 +326,7 @@ export function TicketBoard() {
         <Panel className="animate-fade-up">
           <form onSubmit={handleCreate} className="space-y-4">
             <h3 className="font-display text-sm font-semibold text-foam">
-              Create ticket
+              Create ticket in {selectedProject?.name}
             </h3>
             <Input
               label="Title"
@@ -171,7 +343,18 @@ export function TicketBoard() {
               }
               rows={3}
             />
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Select
+                label="Sprint (optional)"
+                value={form.sprintId}
+                onChange={(e) =>
+                  setForm({ ...form, sprintId: e.target.value })
+                }
+                options={[
+                  { value: "", label: "Backlog — no sprint yet" },
+                  ...sprints.map((s) => ({ value: s.id, label: s.name })),
+                ]}
+              />
               <Select
                 label="Status"
                 value={form.status}
@@ -220,11 +403,15 @@ export function TicketBoard() {
         </Panel>
       )}
 
-      {tickets.length === 0 && !showForm ? (
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-5 w-5 animate-spin text-teal-bright" />
+        </div>
+      ) : tickets.length === 0 && !showForm ? (
         <EmptyState
           icon={Ticket}
-          title="No tickets yet"
-          description="Create a ticket to start tracking work across your team."
+          title="No tickets in this view"
+          description="Create a ticket or change the sprint filter."
           action={
             <Button size="sm" onClick={() => setShowForm(true)}>
               <Plus className="h-4 w-4" />
@@ -284,6 +471,21 @@ export function TicketBoard() {
                               </Badge>
                             )}
                           </div>
+                          <Select
+                            value={ticket.sprintId ?? ""}
+                            onChange={(e) =>
+                              changeSprint(ticket.id, e.target.value)
+                            }
+                            options={[
+                              { value: "", label: "No sprint" },
+                              ...sprints.map((s) => ({
+                                value: s.id,
+                                label: s.name,
+                              })),
+                            ]}
+                            className="mt-2 text-xs"
+                            aria-label={`Sprint for ${ticket.title}`}
+                          />
                           <Select
                             value={ticket.status}
                             onChange={(e) =>

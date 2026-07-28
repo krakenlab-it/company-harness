@@ -1,5 +1,6 @@
 export type ComposerTagKind =
   | "cursor"
+  | "marketing"
   | "repo"
   | "ticket"
   | "pr"
@@ -38,6 +39,12 @@ const TAG_PATTERNS: Array<{
     regex: /@cursor\b/gi,
     valueGroup: 0,
     label: () => "Cursor agent",
+  },
+  {
+    kind: "marketing",
+    regex: /@marketing\b/gi,
+    valueGroup: 0,
+    label: () => "Marketing team",
   },
   {
     kind: "repo",
@@ -140,6 +147,7 @@ export function highlightComposerText(text: string): ComposerHighlightSegment[] 
 
 export const COMPOSER_TAG_HELP = [
   { token: "@cursor", desc: "Delegate to Cursor Cloud Agent (admin/lead)" },
+  { token: "@marketing", desc: "Send creative work to the marketing team" },
   { token: "@repo org/name", desc: "Scope to a repository" },
   { token: "/ticket tkt_…", desc: "Link a harness ticket" },
   { token: "/pr 42", desc: "Reference a pull request" },

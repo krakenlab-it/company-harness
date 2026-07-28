@@ -390,7 +390,7 @@ export function HermesChat() {
               value={input}
               onChange={setInput}
               disabled={sending}
-              placeholder="Message Hermes — @cursor · @repo org/name · /ticket · /pr"
+              placeholder="Message Hermes — @cursor · @marketing · @repo org/name · /ticket"
               aria-label="Message input"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {

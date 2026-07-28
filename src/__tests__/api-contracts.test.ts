@@ -41,6 +41,7 @@ describe("API contracts", () => {
         startDate: "2026-08-01",
         targetDate: "2026-10-01",
         stack: ["next", "supabase"],
+        repoId: "repo_harness",
       }),
     );
     const createdBody = await created.json();

@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FolderKanban, Loader2, Plus } from "lucide-react";
+import { ExternalLink, FolderKanban, GitBranch, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
+import { HelpTip } from "@/components/ui/help-tip";
 import { cn } from "@/lib/utils";
 
 interface Project {
@@ -20,6 +22,13 @@ interface Project {
   progress: number;
   goals?: string[];
   description?: string;
+  repo?: { id: string; name: string; url: string } | null;
+}
+
+interface RepoOption {
+  id: string;
+  name: string;
+  url: string;
 }
 
 const statusVariant: Record<
@@ -35,20 +44,46 @@ const statusVariant: Record<
 
 export function ProjectBoard() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [repos, setRepos] = useState<RepoOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", goals: "" });
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    goals: "",
+    repoId: "",
+  });
 
   async function loadProjects() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/projects");
-      if (!res.ok) throw new Error(`Failed to load projects (${res.status})`);
-      const data = await res.json();
+      const [projectsRes, reposRes] = await Promise.all([
+        fetch("/api/projects"),
+        fetch("/api/access/repos"),
+      ]);
+      if (!projectsRes.ok) {
+        throw new Error(`Failed to load projects (${projectsRes.status})`);
+      }
+      const data = await projectsRes.json();
       setProjects(data.projects ?? data ?? []);
+
+      if (reposRes.ok) {
+        const repoData = await reposRes.json();
+        const list = (repoData.repos ?? []).map(
+          (r: { id: string; name: string; url: string }) => ({
+            id: r.id,
+            name: r.name,
+            url: r.url,
+          }),
+        );
+        setRepos(list);
+        if (list[0] && !form.repoId) {
+          setForm((f) => ({ ...f, repoId: list[0].id }));
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load projects");
     } finally {
@@ -57,12 +92,13 @@ export function ProjectBoard() {
   }
 
   useEffect(() => {
-    loadProjects();
+    void loadProjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !form.repoId) return;
 
     setSubmitting(true);
     try {
@@ -72,14 +108,18 @@ export function ProjectBoard() {
         body: JSON.stringify({
           name: form.name.trim(),
           description: form.description.trim() || undefined,
+          repoId: form.repoId,
           goals: form.goals
             .split("\n")
             .map((g) => g.trim())
             .filter(Boolean),
         }),
       });
-      if (!res.ok) throw new Error(`Failed to create project (${res.status})`);
-      setForm({ name: "", description: "", goals: "" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body.error ?? `Failed to create project (${res.status})`);
+      }
+      setForm({ name: "", description: "", goals: "", repoId: repos[0]?.id ?? "" });
       setShowForm(false);
       await loadProjects();
     } catch (err) {
@@ -99,6 +139,15 @@ export function ProjectBoard() {
 
   return (
     <div className="space-y-6 animate-fade-up">
+      <Panel className="p-4 bg-[var(--surface-muted)]/40 border-dashed">
+        <p className="text-sm text-mist leading-relaxed">
+          Every project is tied to one GitHub repository. Sprints and tickets live
+          under that project — pick a repo first, then plan sprints on the project
+          page.
+          <HelpTip glossary="repository" size="sm" />
+        </p>
+      </Panel>
+
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-mist">
           {projects.length} project{projects.length !== 1 ? "s" : ""}
@@ -107,11 +156,19 @@ export function ProjectBoard() {
           variant="primary"
           size="sm"
           onClick={() => setShowForm(!showForm)}
+          disabled={repos.length === 0}
         >
           <Plus className="h-4 w-4" />
           New project
         </Button>
       </div>
+
+      {repos.length === 0 && (
+        <Panel className="text-sm text-warn">
+          No repositories available. An admin must add repos under Team & Access
+          before you can create a project.
+        </Panel>
+      )}
 
       {error && (
         <Panel className="border-danger/30 bg-danger/5 text-sm text-danger">
@@ -125,6 +182,13 @@ export function ProjectBoard() {
             <h3 className="font-display text-sm font-semibold text-foam">
               Create project
             </h3>
+            <Select
+              label="GitHub repository (required)"
+              value={form.repoId}
+              onChange={(e) => setForm({ ...form, repoId: e.target.value })}
+              options={repos.map((r) => ({ value: r.id, label: r.name }))}
+              required
+            />
             <Input
               label="Name"
               value={form.name}
@@ -149,7 +213,7 @@ export function ProjectBoard() {
               rows={3}
             />
             <div className="flex gap-2">
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" disabled={submitting || !form.repoId}>
                 {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
@@ -172,9 +236,9 @@ export function ProjectBoard() {
         <EmptyState
           icon={FolderKanban}
           title="No projects yet"
-          description="Create your first project to start tracking goals and progress."
+          description="Create a project linked to a repository to start tracking sprints and tickets."
           action={
-            <Button size="sm" onClick={() => setShowForm(true)}>
+            <Button size="sm" onClick={() => setShowForm(true)} disabled={repos.length === 0}>
               <Plus className="h-4 w-4" />
               Create project
             </Button>
@@ -197,6 +261,12 @@ export function ProjectBoard() {
                     {project.status}
                   </Badge>
                 </div>
+                {project.repo && (
+                  <p className="mt-2 inline-flex items-center gap-1 text-xs text-mist">
+                    <GitBranch className="h-3 w-3 shrink-0" />
+                    {project.repo.name}
+                  </p>
+                )}
                 {project.description && (
                   <p className="mt-2 line-clamp-2 text-sm text-mist">
                     {project.description}
@@ -205,24 +275,21 @@ export function ProjectBoard() {
                 <div className="mt-4">
                   <Progress value={project.progress} label="Progress" />
                 </div>
-                {project.goals && project.goals.length > 0 && (
-                  <ul className="mt-3 space-y-1">
-                    {project.goals.slice(0, 3).map((goal) => (
-                      <li
-                        key={goal}
-                        className="flex items-start gap-2 text-xs text-mist"
-                      >
-                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-teal-bright" />
-                        {goal}
-                      </li>
-                    ))}
-                    {project.goals.length > 3 && (
-                      <li className="text-xs text-mist/60">
-                        +{project.goals.length - 3} more
-                      </li>
-                    )}
-                  </ul>
-                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="text-[11px] text-teal-bright group-hover:underline">
+                    Open project →
+                  </span>
+                  {project.repo && (
+                    <a
+                      href={`/repos/${project.repo.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[11px] text-mist hover:text-foam inline-flex items-center gap-0.5"
+                    >
+                      Repo activity
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
               </Panel>
             </Link>
           ))}

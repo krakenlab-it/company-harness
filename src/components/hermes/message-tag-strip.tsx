@@ -6,9 +6,10 @@ import { cn } from "@/lib/utils";
 
 const TAG_VARIANT: Record<
   HermesComposerTagMeta["kind"],
-  "teal" | "default" | "warn" | "ok"
+  "teal" | "default" | "warn" | "ok" | "danger"
 > = {
   cursor: "teal",
+  marketing: "danger",
   repo: "default",
   ticket: "warn",
   pr: "ok",

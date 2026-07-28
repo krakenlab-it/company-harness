@@ -71,6 +71,12 @@ export const GLOSSARY = {
     detail:
       "Developers work on branches so main stays stable. Pull requests merge a branch back into main when ready.",
   },
+  marketingStudio: {
+    term: "Marketing Studio",
+    short: "Where creative requests live — landing pages, UI polish, copy, and campaigns.",
+    detail:
+      "Anyone on admin, dev, or marketing can submit a request here or via Hermes with @marketing. The marketing team updates status as work moves from requested → in progress → review → done.",
+  },
 } as const satisfies Record<string, GlossaryEntry>;
 
 export type GlossaryKey = keyof typeof GLOSSARY;

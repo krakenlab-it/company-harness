@@ -4,6 +4,9 @@ import {
   hasAnyAgentsPermission,
   canManageAccess,
   canAccessIntegrations,
+  canAccessMarketing,
+  canRequestMarketingTasks,
+  canManageMarketingTasks,
   AuthError,
 } from "@/lib/auth";
 import { jsonError } from "@/lib/api/response";
@@ -19,6 +22,9 @@ export async function GET() {
       canDelegate: hasAnyAgentsPermission(session.memberId),
       canManageAccess: canManageAccess(session),
       canAccessIntegrations: canAccessIntegrations(session),
+      canAccessMarketing: canAccessMarketing(session),
+      canRequestMarketing: canRequestMarketingTasks(session),
+      canManageMarketing: canManageMarketingTasks(session),
     });
   } catch (error) {
     if (error instanceof AuthError) {

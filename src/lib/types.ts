@@ -1,4 +1,9 @@
-export type TeamMemberRole = "admin" | "lead" | "dev" | "viewer";
+export type TeamMemberRole =
+  | "admin"
+  | "lead"
+  | "dev"
+  | "marketing"
+  | "viewer";
 
 export interface TeamMember {
   id: string;
@@ -22,6 +27,8 @@ export interface Project {
   startDate: string;
   targetDate: string;
   progress: number;
+  /** Canonical harness repo id (team_repos) */
+  repoId?: string;
   repoUrl?: string;
   stack: string[];
   createdAt: string;
@@ -215,7 +222,7 @@ export type HermesChannel = "in_app" | "webhook";
 export type HermesRole = "user" | "assistant" | "system";
 
 export interface HermesComposerTagMeta {
-  kind: "cursor" | "repo" | "ticket" | "pr" | "project";
+  kind: "cursor" | "marketing" | "repo" | "ticket" | "pr" | "project";
   value: string;
   label: string;
 }
@@ -364,6 +371,41 @@ export interface DelegationAudit {
   createdAt: string;
 }
 
+export type MarketingTaskCategory =
+  | "landing_page"
+  | "ui_redesign"
+  | "brand_copy"
+  | "social_campaign"
+  | "email_campaign"
+  | "other";
+
+export type MarketingTaskStatus =
+  | "requested"
+  | "in_progress"
+  | "review"
+  | "done"
+  | "cancelled";
+
+export type MarketingTaskPriority = "low" | "medium" | "high";
+
+export interface MarketingTask {
+  id: string;
+  title: string;
+  brief: string;
+  category: MarketingTaskCategory;
+  status: MarketingTaskStatus;
+  priority: MarketingTaskPriority;
+  requesterId: string;
+  assigneeId?: string;
+  projectId?: string;
+  targetUrl?: string;
+  dueDate?: string;
+  labels: string[];
+  source: "marketing_ui" | "hermes" | "api";
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface HarnessSnapshot {
   projects: Project[];
   sprints: Sprint[];
@@ -389,4 +431,5 @@ export interface HarnessSnapshot {
   githubRepositories: GitHubRepositorySync[];
   repoAccess: RepoAccess[];
   delegationAudits: DelegationAudit[];
+  marketingTasks: MarketingTask[];
 }

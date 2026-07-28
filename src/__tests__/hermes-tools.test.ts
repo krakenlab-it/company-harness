@@ -70,8 +70,8 @@ describe("create_tickets_for_repos tool", () => {
       {} as never,
     );
 
-    expect(result.count).toBe(2);
-    expect(result.created).toHaveLength(2);
+    expect(result.count).toBe(3);
+    expect(result.created).toHaveLength(3);
     expect(store.listTickets().length).toBeGreaterThanOrEqual(2);
   });
 });

@@ -8,6 +8,7 @@ import {
   FolderKanban,
   GitBranch,
   LayoutDashboard,
+  Megaphone,
   MessageSquare,
   Plug,
   UserCog,
@@ -19,6 +20,7 @@ import { RepoSelector } from "@/components/layout/repo-selector";
 interface SessionInfo {
   canDelegate: boolean;
   canAccessIntegrations: boolean;
+  canAccessMarketing: boolean;
 }
 
 const baseNavItems: {
@@ -31,6 +33,12 @@ const baseNavItems: {
   { href: "/", label: "Command Center", icon: LayoutDashboard, exact: true },
   { href: "/repos", label: "Repos", icon: GitBranch },
   { href: "/work", label: "Work", icon: FolderKanban },
+  {
+    href: "/marketing",
+    label: "Marketing",
+    icon: Megaphone,
+    requires: "canAccessMarketing",
+  },
   { href: "/hermes", label: "Hermes", icon: MessageSquare },
   {
     href: "/agents",
@@ -140,6 +148,7 @@ export function Sidebar() {
   const [session, setSession] = useState<SessionInfo>({
     canDelegate: true,
     canAccessIntegrations: true,
+    canAccessMarketing: true,
   });
 
   useEffect(() => {
@@ -150,6 +159,7 @@ export function Sidebar() {
           setSession({
             canDelegate: data.canDelegate ?? false,
             canAccessIntegrations: data.canAccessIntegrations ?? false,
+            canAccessMarketing: data.canAccessMarketing ?? false,
           });
         }
       })
