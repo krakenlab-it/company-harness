@@ -42,6 +42,12 @@ Then restart `pnpm dev`. Confirm: `GET /api/hermes/status` → `"groqKeyPresent"
 
 Optional: `GROQ_MODEL` (default `openai/gpt-oss-120b`). No database migrations for Groq.
 
+Optional Hermes tuning: `HERMES_MAX_TOOL_STEPS` (default 12), `HERMES_RATE_LIMIT_RPM` (default 20).
+
+### GitHub repo observability
+
+Repo detail pages (`/repos/[id]`) load **`GET /api/repos/[id]/github`** — commits, PR open/close/merge, and Actions pass/fail. Requires `GITHUB_TOKEN`; without it the UI shows a **demo timeline** (badge: “Demo timeline”). Classic PAT: add `workflow` scope (or fine-grained **Actions: Read** + **Pull requests: Read**).
+
 ### Tests & lint
 
 ```bash
