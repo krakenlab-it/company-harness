@@ -14,6 +14,6 @@ export function getHermesConnectionStatus() {
       : undefined,
     hint: keyPresent
       ? undefined
-      : "Add GROQ_API_KEY to Cursor Environment Secrets (or .env.local), then restart pnpm dev.",
+      : "Add GROQ_API_KEY to Cursor Cloud Environment secrets (or .env.local), then restart — Cloud runs need a new agent session if the key still does not appear.",
   };
 }
