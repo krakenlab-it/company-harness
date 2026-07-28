@@ -4,6 +4,7 @@ import { store } from "@/lib/store/memory-store";
 import { formatUsd } from "@/lib/utils";
 import { HERMES_SYSTEM_PROMPT } from "@/lib/hermes/system-prompt";
 import { createHermesTools } from "@/lib/hermes/tools";
+import { getHermesGroqModel } from "@/lib/hermes/config";
 import { getVisibleRepos } from "@/lib/auth/permissions";
 import { DEMO_MEMBER_ID } from "@/lib/auth/config";
 
@@ -72,7 +73,7 @@ export function buildHarnessContext(memberId?: string): string {
     `Active agent jobs: ${snapshot.agents.filter((a) => a.status === "running" || a.status === "queued").length}`,
     `Visible repos (${visibleRepos.length}): ${visibleRepos.map((r) => r.name).join(", ") || "none"}`,
     "",
-    "Note: Hermes cannot delegate Cursor agents. Admins delegate via the Agents page.",
+    "Note: Admins/leads can delegate Cursor agents with `@cursor <prompt>` in Hermes or via the Agents page.",
   ];
 
   return lines.join("\n");
@@ -231,12 +232,13 @@ export async function runHermes(
     return { text, offline: true };
   }
 
+  const modelId = getHermesGroqModel();
   const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
   const tools = createHermesTools({ memberId: options.memberId });
   const harnessContext = buildHarnessContext(options.memberId);
 
   const result = await generateText({
-    model: groq("llama-3.3-70b-versatile"),
+    model: groq(modelId),
     system: `${HERMES_SYSTEM_PROMPT}\n\n${harnessContext}`,
     messages: messages.map((m) => ({
       role: m.role,

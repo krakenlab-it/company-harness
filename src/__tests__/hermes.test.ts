@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildHarnessContext, isHermesConfigured, runHermes } from "@/lib/hermes/agent";
+import {
+  getHermesGroqModel,
+  HERMES_DEFAULT_GROQ_MODEL,
+} from "@/lib/hermes/config";
 import { store } from "@/lib/store/memory-store";
 import {
   PREFERRED_STACK,
@@ -14,6 +18,12 @@ describe("Hermes agent", () => {
 
   it("reports unconfigured without GROQ_API_KEY", () => {
     expect(isHermesConfigured()).toBe(false);
+  });
+
+  it("defaults to Groq GPT-OSS 120B for versatile tool calling", () => {
+    delete process.env.GROQ_MODEL;
+    expect(getHermesGroqModel()).toBe(HERMES_DEFAULT_GROQ_MODEL);
+    expect(HERMES_DEFAULT_GROQ_MODEL).toBe("openai/gpt-oss-120b");
   });
 
   it("builds harness context from the store", () => {

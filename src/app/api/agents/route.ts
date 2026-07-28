@@ -7,7 +7,10 @@ import {
   AuthError,
 } from "@/lib/auth";
 import { blockHermesDelegation } from "@/lib/auth/api";
-import { delegateToCursor } from "@/lib/cursor/client";
+import {
+  delegateToCursor,
+  syncRunningAgentJobs,
+} from "@/lib/cursor/client";
 import { store } from "@/lib/store/memory-store";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
 import type { CursorAgentJobType } from "@/lib/types";
@@ -24,6 +27,7 @@ function mapJob(job: ReturnType<typeof store.getAgentJob>) {
 export async function GET() {
   try {
     const session = await requireAuth();
+    await syncRunningAgentJobs();
     const agents = store.listAgentJobs().map((job) => mapJob(job));
     const audits = store.listDelegationAudits(20);
     return NextResponse.json({
@@ -83,6 +87,7 @@ export async function POST(request: Request) {
       prompt: body.prompt.trim(),
       repo: body.repo.trim(),
       actorId: session.memberId,
+      source: "agents_ui",
     });
 
     return NextResponse.json(

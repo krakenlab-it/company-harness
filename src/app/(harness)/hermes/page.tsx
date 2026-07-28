@@ -10,7 +10,7 @@ export default function HermesPage() {
       <Topbar
         mission="02 · Analyze"
         title="Hermes"
-        description="Intelligence layer — query harness context, repos, tickets, and spend. Cannot delegate agents."
+        description="Intelligence layer — Groq-powered context, tickets, spend, and @cursor delegation for admin/lead."
       />
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-[var(--canvas)]">
         <div className="grid gap-6 lg:grid-cols-3">
@@ -20,6 +20,25 @@ export default function HermesPage() {
             </Suspense>
           </div>
           <aside className="space-y-3">
+            <Panel className="bg-[var(--surface)]">
+              <h2 className="text-xs font-semibold text-foam mb-2">
+                @cursor delegation
+              </h2>
+              <p className="text-xs text-mist leading-relaxed">
+                Admin/lead with repo <strong>agents</strong> permission can send:
+              </p>
+              <pre className="mt-2 text-[11px] font-mono text-foam bg-[var(--surface-muted)] rounded-md p-2 whitespace-pre-wrap">
+{`@cursor Add health check endpoint
+@cursor bugfix: fix login redirect`}
+              </pre>
+              <p className="text-xs text-mist mt-2 leading-relaxed">
+                Scope a repo via the filter or <code className="text-foam">?repo=</code>.
+                Hermes launches a Cursor Cloud Agent and tracks progress automatically.
+              </p>
+              <p className="text-xs text-sand mt-2">
+                See <code className="text-foam">docs/HERMES.md</code> in the repo for setup and GitHub permissions.
+              </p>
+            </Panel>
             <Panel className="bg-[var(--surface)]">
               <h2 className="text-[10px] font-semibold uppercase tracking-[0.1em] text-sand mb-2">
                 Webhook feed

@@ -9,7 +9,7 @@ The unified company operating system for **KrakenLab Media** — multi-repo comm
 | **Auth & permissions** | Supabase sessions (or demo mode); every API scoped to role + repo access |
 | **Command Center** | Dense multi-repo table: stack, tickets, agents, spend, connector status |
 | **Repos & stack** | Per-repo GitHub `package.json` scan and dependency table |
-| **Hermes** | Context from repos, costs, tickets, agent jobs — **cannot** delegate Cursor |
+| **Hermes** | Context from repos, costs, tickets, agent jobs — **`@cursor`** delegates for admin/lead |
 | **Agents** | Admin/lead only; requires `agents` repo permission; always-new-PR policy |
 | **Work** | Projects, tickets, sprint Gantt timeline |
 | **Team & Access** | Member × repo permission matrix; Resend invites |
@@ -29,7 +29,7 @@ With Supabase configured, middleware protects all harness pages and APIs except 
 | **Command Center** | Multi-repo stats, connector strip, agent job visibility |
 | **Repos** | Stack scan from GitHub, repo detail tables |
 | **Work** | Projects, tickets, sprint Gantt |
-| **Hermes** | AI assistant (Groq) — projects, costs, tickets, repo context |
+| **Hermes** | AI assistant (Groq) — projects, costs, tickets, `@cursor` delegation |
 | **Agents** | Hand features, bugfixes, merge conflicts to Cursor (admin/lead) |
 | **Connect** | OpenRouter, Trigger.dev, Google, GCP, GitHub sync |
 | **Team & Access** | Invites, member repo matrix, budgets |
@@ -58,8 +58,9 @@ Open [http://localhost:3000](http://localhost:3000). Demo data loads immediately
 
 | Variable | Purpose |
 |----------|---------|
-| `GROQ_API_KEY` | Full Hermes AI (without it, smart demo answers still work) |
-| `CURSOR_API_KEY` | Live Cursor agent delegation (without it, jobs queue locally) |
+| `GROQ_API_KEY` | Full Hermes AI via Groq (without it, smart demo answers still work) |
+| `GROQ_MODEL` | Optional Groq model ID (default `openai/gpt-oss-120b`) |
+| `CURSOR_API_KEY` | Live Cursor agent delegation + `@cursor` in Hermes |
 | `HERMES_WEBHOOK_SECRET` | Protect the Hermes webhook channel |
 | `NEXT_PUBLIC_SUPABASE_URL` / keys | Auth + Postgres (migrations 001–003) |
 | `HARNESS_DEMO_MODE` | `true` = demo admin session without Supabase (default when Supabase unset) |
@@ -108,6 +109,12 @@ pnpm build    # production build
 pnpm test     # unit + API contract tests
 pnpm lint     # eslint
 ```
+
+## Documentation
+
+Full walkthroughs, architecture, schema, GitHub permissions, and Hermes/`@cursor` guide:
+
+**[docs/README.md](./docs/README.md)**
 
 ## Architecture (short)
 

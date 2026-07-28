@@ -6,18 +6,22 @@ import { ArrowUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { Badge } from "@/components/ui/badge";
+import { CursorJobCard, type TrackedJob } from "@/components/hermes/cursor-job-card";
 import { cn } from "@/lib/utils";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  contextType?: string;
+  contextId?: string;
   createdAt?: string;
 }
 
 interface HermesStatus {
   configured: boolean;
   offline: boolean;
+  groqModel?: string;
 }
 
 interface HermesContext {
@@ -26,10 +30,13 @@ interface HermesContext {
   activeAgents: number;
 }
 
+const POLL_MS = 30_000;
+
 export function HermesChat() {
   const searchParams = useSearchParams();
   const scopedRepo = searchParams.get("repo");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [trackedJobs, setTrackedJobs] = useState<TrackedJob[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,31 +56,56 @@ export function HermesChat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
+  const applyPayload = useCallback((data: Record<string, unknown>) => {
+    if (data?.status && typeof data.status === "object") {
+      const s = data.status as HermesStatus;
+      setStatus({
+        configured: s.configured ?? true,
+        offline: s.offline ?? false,
+        groqModel: s.groqModel,
+      });
+    }
+    if (Array.isArray(data?.messages)) {
+      setMessages(data.messages as Message[]);
+    }
+    if (Array.isArray(data?.trackedJobs)) {
+      setTrackedJobs(data.trackedJobs as TrackedJob[]);
+    }
+    if (data?.context && typeof data.context === "object") {
+      setContext(data.context as HermesContext);
+    }
+  }, []);
+
+  const refreshChat = useCallback(async () => {
+    const res = await fetch("/api/hermes/chat");
+    if (!res.ok) return;
+    applyPayload(await res.json());
+  }, [applyPayload]);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
-    fetch("/api/hermes/chat")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.status) {
-          setStatus({
-            configured: data.status.configured ?? true,
-            offline: data.status.offline ?? false,
-          });
-        }
-        if (data?.messages?.length) {
-          setMessages(data.messages);
-        }
-        if (data?.context) {
-          setContext(data.context);
-        }
-      })
-      .catch(() => {
-        setStatus({ configured: false, offline: true });
-      });
-  }, []);
+    refreshChat().catch(() => {
+      setStatus({ configured: false, offline: true });
+    });
+  }, [refreshChat]);
+
+  useEffect(() => {
+    const hasActiveJobs =
+      trackedJobs.some(
+        (j) => j.status === "running" || j.status === "queued",
+      ) || context.activeAgents > 0;
+
+    if (!hasActiveJobs) return;
+
+    const interval = setInterval(() => {
+      refreshChat().catch(() => {});
+    }, POLL_MS);
+
+    return () => clearInterval(interval);
+  }, [trackedJobs, context.activeAgents, refreshChat]);
 
   async function handleSend(e?: React.FormEvent) {
     e?.preventDefault();
@@ -96,7 +128,11 @@ export function HermesChat() {
       const res = await fetch("/api/hermes/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, channel: "in-app" }),
+        body: JSON.stringify({
+          message: text,
+          channel: "in-app",
+          repo: scopedRepo ?? undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -105,29 +141,15 @@ export function HermesChat() {
       }
 
       const data = await res.json();
-      const reply: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: data.reply ?? data.message ?? data.content ?? "No response.",
-        createdAt: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, reply]);
-
-      if (data.status) {
-        setStatus({
-          configured: data.status.configured ?? status.configured,
-          offline: data.status.offline ?? false,
-        });
-      }
-      if (data.context) {
-        setContext(data.context);
-      }
+      applyPayload(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
     } finally {
       setSending(false);
     }
   }
+
+  const jobsById = new Map(trackedJobs.map((j) => [j.id, j]));
 
   return (
     <div className="flex h-[calc(100dvh-8rem)] flex-col gap-3 md:h-[calc(100dvh-6rem)]">
@@ -138,7 +160,10 @@ export function HermesChat() {
         <Badge variant="default">{context.repos} entities</Badge>
         <Badge variant="default">{context.openTickets} tickets</Badge>
         <Badge variant="default">{context.activeAgents} missions</Badge>
-        {status.offline && <Badge variant="warn">Offline</Badge>}
+        {status.offline && <Badge variant="warn">Demo mode</Badge>}
+        {status.configured && !status.offline && status.groqModel && (
+          <Badge variant="ok">Groq · {status.groqModel}</Badge>
+        )}
       </div>
 
       <Panel
@@ -158,19 +183,19 @@ export function HermesChat() {
               </p>
               <p className="max-w-md text-sm text-mist leading-relaxed">
                 {scopedRepo
-                  ? `Scoped to ${scopedRepo}. Ask about stack, tickets, spend, or sprint status.`
-                  : "Ask about project status, repo stack, open tickets, or spend across all entities."}
+                  ? `Scoped to ${scopedRepo}. Ask about stack, tickets, spend — or \`@cursor\` to delegate (admin/lead).`
+                  : "Ask about projects, spend, tickets — or use `@cursor` with a repo scope to delegate to Cursor (admin/lead)."}
               </p>
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 {(scopedRepo
                   ? [
                       `Scan context for ${scopedRepo}`,
+                      `@cursor Add rate limiting to auth`,
                       "Open tickets on this repo",
-                      "Stack health summary",
                     ]
                   : [
                       "Summarize open tickets",
-                      "Stack health by repo",
+                      "@cursor feature: improve error messages",
                       "What are we spending this month?",
                     ]
                 ).map((suggestion) => (
@@ -188,26 +213,34 @@ export function HermesChat() {
           )}
 
           <div className="mx-auto max-w-3xl space-y-6">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  "flex",
-                  msg.role === "user" ? "justify-end" : "justify-start",
-                )}
-              >
+            {messages.map((msg) => {
+              const linkedJob =
+                msg.contextType === "agent_job" && msg.contextId
+                  ? jobsById.get(msg.contextId)
+                  : undefined;
+
+              return (
                 <div
+                  key={msg.id}
                   className={cn(
-                    "max-w-[90%] text-sm leading-relaxed sm:max-w-[85%]",
-                    msg.role === "user"
-                      ? "message-user px-4 py-3"
-                      : "message-assistant px-1 py-1",
+                    "flex",
+                    msg.role === "user" ? "justify-end" : "justify-start",
                   )}
                 >
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  <div
+                    className={cn(
+                      "max-w-[90%] text-sm leading-relaxed sm:max-w-[85%]",
+                      msg.role === "user"
+                        ? "message-user px-4 py-3"
+                        : "message-assistant px-1 py-1",
+                    )}
+                  >
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    {linkedJob && <CursorJobCard job={linkedJob} compact />}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div ref={bottomRef} />
         </div>
@@ -227,7 +260,7 @@ export function HermesChat() {
               ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Message Hermes"
+              placeholder="Message Hermes — @cursor to delegate (admin/lead)"
               rows={1}
               className="flex-1 resize-none bg-transparent py-2 text-sm text-foam placeholder:text-sand outline-none min-h-[24px] max-h-[120px]"
               disabled={sending}

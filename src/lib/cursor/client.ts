@@ -1,9 +1,9 @@
 import type { CursorAgentJob, CursorAgentJobStatus } from "@/lib/types";
 import { store } from "@/lib/store/memory-store";
 import { hashPrompt, wrapDelegationPrompt } from "@/lib/cursor/prompts";
+import { mapCursorStatusToJobStatus } from "@/lib/cursor/status";
 
-// Cursor Cloud Agent API endpoints may vary by version.
-// This client targets https://api.cursor.com/v0/agents with graceful local fallback.
+// Cursor Cloud Agent API v0 — https://cursor.com/docs/cloud-agent/api/v0
 
 const CURSOR_API_BASE = "https://api.cursor.com/v0";
 
@@ -13,6 +13,27 @@ export interface DelegateToCursorInput {
   prompt: string;
   repo?: string;
   actorId?: string;
+  source?: "hermes" | "agents_ui" | "api";
+  ref?: string;
+}
+
+export interface CursorAgentApiResponse {
+  id?: string;
+  name?: string;
+  status?: string;
+  summary?: string;
+  source?: { repository?: string; ref?: string };
+  target?: {
+    branchName?: string;
+    url?: string;
+    prUrl?: string;
+    pull_request_url?: string;
+  };
+}
+
+function cursorAuthHeader(apiKey: string): string {
+  const encoded = Buffer.from(`${apiKey}:`).toString("base64");
+  return `Basic ${encoded}`;
 }
 
 export function isCursorConfigured(): boolean {
@@ -26,54 +47,152 @@ export function listAgentJobs(): CursorAgentJob[] {
 export function updateAgentJobStatus(
   id: string,
   status: CursorAgentJobStatus,
-  extras?: Partial<Pick<CursorAgentJob, "cursorAgentId" | "prUrl" | "resultSummary">>,
+  extras?: Partial<
+    Pick<CursorAgentJob, "cursorAgentId" | "prUrl" | "resultSummary">
+  >,
 ): CursorAgentJob | undefined {
   return store.updateAgentJob(id, { status, ...extras });
 }
 
-async function postToCursorApi(
-  input: DelegateToCursorInput,
-): Promise<{ cursorAgentId?: string; prUrl?: string } | null> {
+async function cursorFetch(
+  path: string,
+  init?: RequestInit,
+): Promise<Response | null> {
   const apiKey = process.env.CURSOR_API_KEY;
   if (!apiKey) return null;
 
   try {
-    const response = await fetch(`${CURSOR_API_BASE}/agents`, {
-      method: "POST",
+    return await fetch(`${CURSOR_API_BASE}${path}`, {
+      ...init,
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: cursorAuthHeader(apiKey),
         "Content-Type": "application/json",
+        ...init?.headers,
       },
-      body: JSON.stringify({
-        type: input.type,
-        title: input.title,
-        prompt: input.prompt,
-        repository: input.repo,
-      }),
     });
-
-    if (!response.ok) {
-      console.warn(
-        `[cursor] API returned ${response.status}: ${await response.text()}`,
-      );
-      return null;
-    }
-
-    const data = (await response.json()) as {
-      id?: string;
-      agent_id?: string;
-      pr_url?: string;
-      pull_request_url?: string;
-    };
-
-    return {
-      cursorAgentId: data.id ?? data.agent_id,
-      prUrl: data.pr_url ?? data.pull_request_url,
-    };
   } catch (error) {
-    console.warn("[cursor] API request failed, falling back to local queue:", error);
+    console.warn("[cursor] API request failed:", error);
     return null;
   }
+}
+
+export async function fetchCursorAgentStatus(
+  cursorAgentId: string,
+): Promise<CursorAgentApiResponse | null> {
+  const response = await cursorFetch(`/agents/${encodeURIComponent(cursorAgentId)}`);
+  if (!response?.ok) {
+    if (response) {
+      console.warn(
+        `[cursor] status ${response.status}: ${await response.text()}`,
+      );
+    }
+    return null;
+  }
+  return (await response.json()) as CursorAgentApiResponse;
+}
+
+export async function syncAgentJobFromCursor(
+  job: CursorAgentJob,
+): Promise<CursorAgentJob> {
+  if (!job.cursorAgentId || !isCursorConfigured()) {
+    return job;
+  }
+
+  if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
+    return job;
+  }
+
+  const remote = await fetchCursorAgentStatus(job.cursorAgentId);
+  if (!remote?.status) return job;
+
+  const status = mapCursorStatusToJobStatus(remote.status);
+  const prUrl =
+    remote.target?.prUrl ??
+    remote.target?.pull_request_url ??
+    job.prUrl;
+
+  const updated = store.updateAgentJob(job.id, {
+    status,
+    prUrl,
+    resultSummary: remote.summary ?? job.resultSummary,
+  });
+
+  if (updated && job.actorId && job.repo) {
+    const audits = store.listDelegationAudits(100);
+    const audit = audits.find((a) => a.jobId === job.id);
+    if (audit) {
+      store.updateDelegationAudit(audit.id, {
+        status,
+        prUrl,
+      });
+    }
+  }
+
+  if (updated && (status === "completed" || status === "failed")) {
+    store.addActivity({
+      entityType: "agent",
+      entityId: job.id,
+      action: status === "completed" ? "completed" : "failed",
+      summary: `Cursor agent ${status}: ${job.title}`,
+      actorId: job.actorId,
+    });
+  }
+
+  return updated ?? job;
+}
+
+export async function syncRunningAgentJobs(): Promise<number> {
+  const running = store
+    .listAgentJobs()
+    .filter(
+      (j) =>
+        (j.status === "running" || j.status === "queued") && j.cursorAgentId,
+    );
+
+  let synced = 0;
+  for (const job of running) {
+    const before = job.status;
+    const after = await syncAgentJobFromCursor(job);
+    if (after.status !== before) synced += 1;
+  }
+  return synced;
+}
+
+async function postToCursorApi(
+  input: DelegateToCursorInput,
+): Promise<{ cursorAgentId?: string; prUrl?: string; status?: string } | null> {
+  if (!input.repo?.trim()) return null;
+
+  const response = await cursorFetch("/agents", {
+    method: "POST",
+    body: JSON.stringify({
+      prompt: { text: input.prompt },
+      source: {
+        repository: input.repo.trim(),
+        ref: input.ref ?? "main",
+      },
+      target: {
+        autoCreatePr: true,
+      },
+    }),
+  });
+
+  if (!response) return null;
+
+  if (!response.ok) {
+    console.warn(
+      `[cursor] launch ${response.status}: ${await response.text()}`,
+    );
+    return null;
+  }
+
+  const data = (await response.json()) as CursorAgentApiResponse;
+
+  return {
+    cursorAgentId: data.id,
+    prUrl: data.target?.prUrl ?? data.target?.pull_request_url,
+    status: data.status,
+  };
 }
 
 export async function delegateToCursor(
@@ -94,7 +213,10 @@ export async function delegateToCursor(
     entityType: "agent",
     entityId: job.id,
     action: "delegated",
-    summary: `Delegated to Cursor: ${input.title}`,
+    summary:
+      input.source === "hermes"
+        ? `Hermes @cursor: ${input.title}`
+        : `Delegated to Cursor: ${input.title}`,
     actorId: input.actorId,
   });
 
@@ -110,21 +232,23 @@ export async function delegateToCursor(
     });
   }
 
-  const apiInput = { ...input, prompt: wrappedPrompt };
-
   if (!isCursorConfigured()) {
     store.updateAgentJob(job.id, {
       status: "running",
-      resultSummary: "Simulated — CURSOR_API_KEY not configured. Job queued locally.",
+      resultSummary:
+        "Simulated — CURSOR_API_KEY not configured. Job queued locally.",
     });
     return store.getAgentJob(job.id)!;
   }
 
-  const apiResult = await postToCursorApi(apiInput);
+  const apiResult = await postToCursorApi({ ...input, prompt: wrappedPrompt });
 
-  if (apiResult) {
+  if (apiResult?.cursorAgentId) {
+    const status = apiResult.status
+      ? mapCursorStatusToJobStatus(apiResult.status)
+      : "running";
     const updated = store.updateAgentJob(job.id, {
-      status: "running",
+      status,
       cursorAgentId: apiResult.cursorAgentId,
       prUrl: apiResult.prUrl,
     });
@@ -133,7 +257,8 @@ export async function delegateToCursor(
 
   const updated = store.updateAgentJob(job.id, {
     status: "running",
-    resultSummary: "Queued locally — Cursor API unavailable. Will retry when configured.",
+    resultSummary:
+      "Queued locally — Cursor API unavailable. Check CURSOR_API_KEY and repo access.",
   });
   return updated!;
 }
