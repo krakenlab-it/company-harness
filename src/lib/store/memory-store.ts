@@ -646,7 +646,11 @@ class MemoryStore {
     id: string,
     patch: Partial<Pick<DelegationAudit, "status" | "prUrl">>,
   ): DelegationAudit | undefined {
-    return this.update(this.state.delegationAudits, id, patch);
+    return this.update<DelegationAudit>(
+      this.state.delegationAudits,
+      id,
+      patch,
+    );
   }
 }
 

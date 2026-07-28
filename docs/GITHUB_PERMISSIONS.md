@@ -4,15 +4,16 @@ This guide lists the permissions needed for repo sync, stack scanning, Cursor Cl
 
 ## GitHub personal access token (`GITHUB_TOKEN`)
 
-Used by: **Integrations → GitHub sync**, **stack scan** (`package.json` fetch), repo linking.
+Used by: **Integrations → GitHub sync**, **stack scan** (`package.json` fetch), **repo git activity graph**, repo linking.
 
 ### Recommended scopes (classic PAT)
 
 | Scope | Why |
 |-------|-----|
-| `repo` | Read private repo contents (stack scan, metadata) |
+| `repo` | Read private repo contents (stack scan, metadata, commits) |
 | `read:org` | List org repositories when `GITHUB_ORG` is set |
 | `read:user` | Associate repos with authenticated user |
+| `workflow` | Read GitHub Actions run status (optional classic scope) |
 
 For **public repos only**, `public_repo` may suffice.
 
@@ -22,7 +23,8 @@ For **public repos only**, `public_repo` may suffice.
 - Permissions:
   - **Contents:** Read
   - **Metadata:** Read
-  - **Pull requests:** Read (optional, for PR-aware workflows)
+  - **Pull requests:** Read (open/merged/closed on repo page)
+  - **Actions:** Read (workflow success/failure timeline)
 
 ### Org settings
 

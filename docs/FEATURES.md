@@ -28,6 +28,8 @@ Every major harness capability, where it lives, and who can use it.
 | Stack scan | Fetches `package.json`, classifies dependencies |
 | Health % | Outdated/critical dependency rollup |
 | Detail table | Per-dependency version and status |
+| Git activity graph | Commits, PRs (open/merged/closed), Actions pass/fail |
+| GitHub API | `GET /api/repos/[id]/github` (live or demo timeline) |
 
 ## Work (Audit)
 
@@ -54,6 +56,8 @@ Every major harness capability, where it lives, and who can use it.
 | Job tracking | Live status cards + 30s polling |
 | Webhook | External POST channel |
 | Suggestion chips | Quick prompts in empty state |
+| Markdown replies | Lists, bold, code blocks in assistant messages |
+| Multi-step tools | Ticket creation across repos, rate-limited loop |
 
 See [HERMES.md](./HERMES.md).
 

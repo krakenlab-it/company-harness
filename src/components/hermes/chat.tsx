@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { ArrowUp, Bot, Loader2, Sparkles, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { Badge } from "@/components/ui/badge";
 import { CursorJobCard, type TrackedJob } from "@/components/hermes/cursor-job-card";
+import { MarkdownMessage } from "@/components/hermes/markdown-message";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -86,7 +87,7 @@ export function HermesChat() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, scrollToBottom]);
+  }, [messages, sending, scrollToBottom]);
 
   useEffect(() => {
     refreshChat().catch(() => {
@@ -108,6 +109,13 @@ export function HermesChat() {
 
     return () => clearInterval(interval);
   }, [trackedJobs, context.activeAgents, refreshChat]);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
 
   async function handleSend(e?: React.FormEvent) {
     e?.preventDefault();
@@ -143,6 +151,11 @@ export function HermesChat() {
       }
 
       const data = await res.json();
+      const replyText =
+        data.reply ?? data.message ?? data.content ?? "";
+      if (!replyText.trim() && !Array.isArray(data.messages)) {
+        throw new Error("Hermes returned an empty response — try again");
+      }
       applyPayload(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -154,65 +167,80 @@ export function HermesChat() {
   const jobsById = new Map(trackedJobs.map((j) => [j.id, j]));
 
   return (
-    <div className="flex h-[calc(100dvh-8rem)] flex-col gap-3 md:h-[calc(100dvh-6rem)]">
-      <div className="flex flex-wrap items-center gap-2 text-xs text-mist">
+    <div className="flex h-[calc(100dvh-7rem)] flex-col gap-3 md:h-[calc(100dvh-5.5rem)]">
+      <header className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+        <div className="flex items-center gap-2 mr-auto">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-bright/10 text-teal-bright">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foam">Hermes</p>
+            <p className="text-[11px] text-mist">
+              Groq-powered harness assistant
+            </p>
+          </div>
+        </div>
         {scopedRepo && (
-          <Badge variant="teal">Target: {scopedRepo}</Badge>
+          <Badge variant="teal">Repo: {scopedRepo}</Badge>
         )}
-        <Badge variant="default">{context.repos} entities</Badge>
+        <Badge variant="default">{context.repos} repos</Badge>
         <Badge variant="default">{context.openTickets} tickets</Badge>
-        <Badge variant="default">{context.activeAgents} missions</Badge>
-        {status.offline && (
+        <Badge variant="default">{context.activeAgents} agents</Badge>
+        {status.offline ? (
           <Badge variant="warn" title={status.hint}>
-            Demo mode — Groq key missing
+            Demo mode
           </Badge>
-        )}
-        {status.configured && !status.offline && status.groqModel && (
-          <Badge variant="ok">Groq · {status.groqModel}</Badge>
-        )}
-      </div>
+        ) : status.groqModel ? (
+          <Badge variant="ok">{status.groqModel}</Badge>
+        ) : null}
+      </header>
       {status.offline && status.hint && (
-        <p className="text-xs text-mist -mt-1">{status.hint}</p>
+        <p className="text-xs text-mist -mt-1 px-1">{status.hint}</p>
       )}
 
       <Panel
         padding="none"
-        className="flex flex-1 flex-col overflow-hidden border-[var(--border)]"
+        className="flex flex-1 flex-col overflow-hidden border-[var(--border)] bg-[var(--canvas)]"
       >
         <div
-          className="flex-1 overflow-y-auto px-4 py-6 sm:px-6"
+          className="flex-1 overflow-y-auto px-3 py-6 sm:px-6"
           role="log"
           aria-live="polite"
           aria-label="Chat messages"
         >
           {messages.length === 0 && (
-            <div className="flex h-full min-h-[200px] flex-col items-center justify-center text-center px-4">
-              <p className="font-display text-lg font-semibold tracking-tight text-foam mb-2">
+            <div className="flex h-full min-h-[240px] flex-col items-center justify-center text-center px-4">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-bright/10">
+                <Bot className="h-7 w-7 text-teal-bright" />
+              </div>
+              <p className="font-display text-xl font-semibold tracking-tight text-foam mb-2">
                 How can I help?
               </p>
-              <p className="max-w-md text-sm text-mist leading-relaxed">
+              <p className="max-w-lg text-sm text-mist leading-relaxed">
                 {scopedRepo
-                  ? `Scoped to ${scopedRepo}. Ask about stack, tickets, spend — or \`@cursor\` to delegate (admin/lead).`
+                  ? `Scoped to **${scopedRepo}**. Ask about stack, tickets, spend — or \`@cursor\` to delegate (admin/lead).`
                   : "Ask about projects, spend, tickets — or use `@cursor` with a repo scope to delegate to Cursor (admin/lead)."}
               </p>
-              <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <div className="mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2">
                 {(scopedRepo
                   ? [
                       `Scan context for ${scopedRepo}`,
                       `@cursor Add rate limiting to auth`,
                       "Open tickets on this repo",
+                      "Summarize open PRs and CI status",
                     ]
                   : [
                       "Summarize open tickets",
                       "@cursor feature: improve error messages",
                       "What are we spending this month?",
+                      "Create test tickets for all repos",
                     ]
                 ).map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
                     onClick={() => setInput(suggestion)}
-                    className="rounded-full border border-[var(--border)] px-3 py-1.5 text-xs text-mist hover:bg-[var(--surface-muted)] hover:text-foam transition-colors"
+                    className="rounded-xl border border-[var(--border)] px-3 py-2.5 text-left text-xs text-mist hover:border-teal-bright/30 hover:bg-[var(--surface-muted)] hover:text-foam transition-colors"
                   >
                     {suggestion}
                   </button>
@@ -227,42 +255,79 @@ export function HermesChat() {
                 msg.contextType === "agent_job" && msg.contextId
                   ? jobsById.get(msg.contextId)
                   : undefined;
+              const isUser = msg.role === "user";
 
               return (
                 <div
                   key={msg.id}
                   className={cn(
-                    "flex",
-                    msg.role === "user" ? "justify-end" : "justify-start",
+                    "flex gap-3",
+                    isUser ? "flex-row-reverse" : "flex-row",
                   )}
                 >
                   <div
                     className={cn(
-                      "max-w-[90%] text-sm leading-relaxed sm:max-w-[85%]",
-                      msg.role === "user"
-                        ? "message-user px-4 py-3"
-                        : "message-assistant px-1 py-1",
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                      isUser
+                        ? "bg-[var(--surface-muted)] text-foam"
+                        : "bg-teal-bright/15 text-teal-bright",
+                    )}
+                    aria-hidden
+                  >
+                    {isUser ? (
+                      <User className="h-4 w-4" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div
+                    className={cn(
+                      "min-w-0 max-w-[85%] sm:max-w-[78%]",
+                      isUser ? "message-user px-4 py-3" : "message-assistant py-1",
                     )}
                   >
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    {isUser ? (
+                      <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                    ) : (
+                      <MarkdownMessage content={msg.content} />
+                    )}
                     {linkedJob && <CursorJobCard job={linkedJob} compact />}
+                    {msg.createdAt && (
+                      <time
+                        className="mt-2 block text-[10px] text-sand"
+                        dateTime={msg.createdAt}
+                      >
+                        {new Date(msg.createdAt).toLocaleString()}
+                      </time>
+                    )}
                   </div>
                 </div>
               );
             })}
+
+            {sending && (
+              <div className="flex gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-bright/15 text-teal-bright">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] px-4 py-3 text-sm text-mist">
+                  Hermes is working — multi-step tasks may take up to a minute…
+                </div>
+              </div>
+            )}
           </div>
           <div ref={bottomRef} />
         </div>
 
         {error && (
-          <div className="border-t border-[var(--border-subtle)] bg-[var(--surface)] px-4 py-2 text-sm text-danger">
+          <div className="border-t border-[var(--border-subtle)] bg-red-500/5 px-4 py-2 text-sm text-danger">
             {error}
           </div>
         )}
 
         <form
           onSubmit={handleSend}
-          className="border-t border-[var(--border)] p-4 bg-[var(--canvas)]"
+          className="border-t border-[var(--border)] p-4 bg-[var(--surface)]"
         >
           <div className="mx-auto max-w-3xl prompt-composer flex items-end gap-2 p-2 pl-4">
             <textarea
@@ -271,8 +336,9 @@ export function HermesChat() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Message Hermes — @cursor to delegate (admin/lead)"
               rows={1}
-              className="flex-1 resize-none bg-transparent py-2 text-sm text-foam placeholder:text-sand outline-none min-h-[24px] max-h-[120px]"
+              className="flex-1 resize-none bg-transparent py-2 text-sm text-foam placeholder:text-sand outline-none min-h-[28px] max-h-[160px]"
               disabled={sending}
+              aria-busy={sending}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -285,7 +351,7 @@ export function HermesChat() {
               type="submit"
               size="icon"
               disabled={!input.trim() || sending}
-              className="rounded-full h-8 w-8 shrink-0 mb-0.5"
+              className="rounded-full h-9 w-9 shrink-0 mb-0.5"
               aria-label="Send message"
             >
               {sending ? (
@@ -295,6 +361,9 @@ export function HermesChat() {
               )}
             </Button>
           </div>
+          <p className="mx-auto max-w-3xl mt-2 text-[10px] text-sand text-center">
+            Enter to send · Shift+Enter for newline · Markdown supported in replies
+          </p>
         </form>
       </Panel>
     </div>

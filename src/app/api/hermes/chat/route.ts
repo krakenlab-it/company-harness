@@ -12,7 +12,13 @@ import { store } from "@/lib/store/memory-store";
 import { syncRunningAgentJobs } from "@/lib/cursor/client";
 import { getHermesGroqModel } from "@/lib/hermes/config";
 import { getHermesConnectionStatus } from "@/lib/hermes/status";
+import {
+  checkHermesRateLimit,
+} from "@/lib/hermes/rate-limit";
+import { getHermesRateLimitRpm } from "@/lib/hermes/config";
 import { jsonError, parseJsonBody } from "@/lib/api/response";
+
+export const maxDuration = 120;
 
 function toChatMessages() {
   return store
@@ -130,6 +136,14 @@ export async function POST(request: NextRequest) {
       return jsonError("messages or message is required", 400);
     }
 
+    const rate = checkHermesRateLimit(session.memberId, getHermesRateLimitRpm());
+    if (!rate.allowed) {
+      return jsonError(
+        `Hermes rate limit — try again in ${rate.retryAfterSec}s`,
+        429,
+      );
+    }
+
     if (isCursorCommand(userText)) {
       const delegation = await handleHermesCursorCommand(
         session,
@@ -198,6 +212,7 @@ export async function POST(request: NextRequest) {
       message: result.text,
       content: result.text,
       toolResults: result.toolResults,
+      steps: result.steps,
       offline: result.offline,
       context: {
         ...context,

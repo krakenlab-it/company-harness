@@ -26,12 +26,21 @@ When changing styling, preserve both the light aesthetic and the loop navigation
 
 ### Hermes / Groq API key
 
-Hermes uses the environment variable **`GROQ_API_KEY`** (not a client-side or public env var).
+Hermes uses **`GROQ_API_KEY`** (server-only, not `NEXT_PUBLIC_`).
 
-- **Cursor Environment Secrets:** add `GROQ_API_KEY`, then restart `pnpm dev`.
-- **Local:** `.env.local` with the same name also works.
-- UI shows **Demo mode** until the key is present and the server has been restarted.
-- Optional: `GROQ_MODEL` (default `openai/gpt-oss-120b`).
+**Common trap:** `.env.local` with an empty line `GROQ_API_KEY=` **overrides** Cursor Environment Secrets and forces Demo mode. Either **delete that line** or paste your real key there.
+
+**Desktop (most reliable):** in repo root `.env.local`:
+
+```bash
+GROQ_API_KEY=gsk_your_key_from_console.groq.com
+```
+
+Then restart `pnpm dev`. Confirm: `GET /api/hermes/status` → `"groqKeyPresent": true`.
+
+**Cursor Cloud:** add `GROQ_API_KEY` to the Cloud **Environment** secrets and start a **new agent run** (this pod may not receive secrets if `environment` is unset). Remove empty `GROQ_API_KEY=` from `.env.local` first.
+
+Optional: `GROQ_MODEL` (default `openai/gpt-oss-120b`). No database migrations for Groq.
 
 ### Tests & lint
 

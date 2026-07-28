@@ -1,11 +1,12 @@
 import { createGroq } from "@ai-sdk/groq";
-import { generateText } from "ai";
+import { generateText, stepCountIs } from "ai";
 import { store } from "@/lib/store/memory-store";
 import { formatUsd } from "@/lib/utils";
 import { HERMES_SYSTEM_PROMPT } from "@/lib/hermes/system-prompt";
 import { createHermesTools } from "@/lib/hermes/tools";
-import { getHermesGroqModel } from "@/lib/hermes/config";
+import { getHermesGroqModel, getHermesMaxToolSteps } from "@/lib/hermes/config";
 import { getGroqApiKey } from "@/lib/hermes/env";
+import { formatHermesReply } from "@/lib/hermes/format-result";
 import { getVisibleRepos } from "@/lib/auth/permissions";
 import { DEMO_MEMBER_ID } from "@/lib/auth/config";
 
@@ -29,6 +30,7 @@ export interface RunHermesOptions {
 export interface RunHermesResult {
   text: string;
   toolResults?: unknown[];
+  steps?: number;
   offline?: boolean;
 }
 
@@ -248,17 +250,26 @@ export async function runHermes(
     })),
     tools,
     maxRetries: 2,
+    stopWhen: stepCountIs(getHermesMaxToolSteps()),
+    onStepFinish: ({ stepNumber, toolCalls, finishReason }) => {
+      console.info(
+        `[hermes] step ${stepNumber} finish=${finishReason} tools=${toolCalls?.length ?? 0}`,
+      );
+    },
   });
+
+  const text = formatHermesReply(result);
 
   store.addHermesMessage({
     channel: "in_app",
     role: "assistant",
-    content: result.text,
+    content: text,
   });
 
   return {
-    text: result.text,
+    text,
     toolResults: result.toolResults,
+    steps: result.steps.length,
     offline: false,
   };
 }
