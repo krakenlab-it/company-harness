@@ -12,6 +12,7 @@ import {
   Ticket,
   UserCog,
   Users,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ const navItems: {
   { href: "/hermes", label: "Hermes", icon: MessageSquare },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/stack", label: "Stack & Costs", icon: Layers },
+  { href: "/integrations", label: "Integrations", icon: Plug },
   { href: "/crm", label: "CRM", icon: Users },
   { href: "/team", label: "Team", icon: UserCog },
   { href: "/guidelines", label: "Guidelines", icon: BookOpen },

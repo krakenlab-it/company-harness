@@ -6,6 +6,7 @@ export interface TeamMember {
   email: string;
   role: TeamMemberRole;
   avatar?: string;
+  authUserId?: string;
   createdAt: string;
 }
 
@@ -218,6 +219,117 @@ export interface HermesMessage {
   createdAt: string;
 }
 
+export type IntegrationProvider =
+  | "openrouter"
+  | "trigger"
+  | "google"
+  | "gcp"
+  | "github"
+  | "resend";
+
+export type IntegrationStatus =
+  | "connected"
+  | "disconnected"
+  | "error"
+  | "syncing";
+
+export interface IntegrationConnection {
+  id: string;
+  provider: IntegrationProvider;
+  status: IntegrationStatus;
+  label: string;
+  configured: boolean;
+  lastSyncAt?: string;
+  lastError?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type TeamInviteStatus = "pending" | "accepted" | "expired" | "revoked";
+
+export interface TeamInvite {
+  id: string;
+  email: string;
+  name?: string;
+  role: TeamMemberRole;
+  token: string;
+  projectIds: string[];
+  invitedById?: string;
+  status: TeamInviteStatus;
+  expiresAt: string;
+  acceptedAt?: string;
+  createdAt: string;
+}
+
+export interface ProjectAssignment {
+  id: string;
+  projectId: string;
+  memberId?: string;
+  email: string;
+  role: TeamMemberRole;
+  assignedAt: string;
+}
+
+export interface TriggerJobRun {
+  id: string;
+  externalRunId: string;
+  taskId: string;
+  status: string;
+  durationMs?: number;
+  costUsd?: number;
+  projectId?: string;
+  startedAt: string;
+  finishedAt?: string;
+}
+
+export interface OpenRouterUsageSnapshot {
+  id: string;
+  usageUsd: number;
+  limitUsd?: number;
+  tokensUsed?: number;
+  recordedAt: string;
+}
+
+export interface GoogleCalendarEventSummary {
+  id: string;
+  externalId: string;
+  title: string;
+  startAt: string;
+  endAt: string;
+  attendees: string[];
+}
+
+export interface GoogleGmailThreadSummary {
+  id: string;
+  externalId: string;
+  subject: string;
+  from: string;
+  snippet: string;
+  receivedAt: string;
+}
+
+export type GcpHealthStatus = "healthy" | "degraded" | "down" | "unknown";
+
+export interface GcpHealthCheck {
+  id: string;
+  service: string;
+  status: GcpHealthStatus;
+  message?: string;
+  checkedAt: string;
+}
+
+export interface GitHubRepositorySync {
+  id: string;
+  externalId: number;
+  name: string;
+  fullName: string;
+  url: string;
+  defaultBranch: string;
+  lastPushAt?: string;
+  openIssues: number;
+  projectId?: string;
+  syncedAt: string;
+}
+
 export interface HarnessSnapshot {
   projects: Project[];
   sprints: Sprint[];
@@ -232,4 +344,13 @@ export interface HarnessSnapshot {
   repos: TeamRepo[];
   budgets: TeamBudget[];
   hermesMessages: HermesMessage[];
+  integrationConnections: IntegrationConnection[];
+  teamInvites: TeamInvite[];
+  projectAssignments: ProjectAssignment[];
+  triggerRuns: TriggerJobRun[];
+  openRouterUsage: OpenRouterUsageSnapshot[];
+  googleCalendarEvents: GoogleCalendarEventSummary[];
+  googleGmailThreads: GoogleGmailThreadSummary[];
+  gcpHealthChecks: GcpHealthCheck[];
+  githubRepositories: GitHubRepositorySync[];
 }

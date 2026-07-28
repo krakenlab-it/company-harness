@@ -11,7 +11,8 @@ The unified company operating system for **KrakenLab Media** — track projects,
 | **Agents** | Hand issues, PRs, and features to Cursor Cloud Agents |
 | **Stack & Costs** | Auto-detect core deps (Next.js, Supabase, Stripe, OpenAI, trigger.dev, Resend, …) and enter monthly costs |
 | **CRM** | Contacts and deals with Hermes insights |
-| **Team** | Repos, allowed actions, and budgets |
+| **Team** | Repos, allowed actions, budgets, **invites via Resend**, login/join flow |
+| **Integrations** | OpenRouter spend, Trigger.dev runs, Google Gmail/Calendar, GCP health, GitHub repos |
 | **Guidelines** | Preferred stack for future builds |
 
 ## Preferred stack (company default)
@@ -42,6 +43,34 @@ Open [http://localhost:3000](http://localhost:3000). Demo data loads immediately
 | `CURSOR_API_KEY` | Live Cursor agent delegation (without it, jobs queue locally) |
 | `HERMES_WEBHOOK_SECRET` | Protect the Hermes webhook channel |
 | `NEXT_PUBLIC_SUPABASE_URL` / keys | Wire to Supabase when ready (SQL migration included) |
+| `OPENROUTER_API_KEY` | Live token usage + spend sync |
+| `TRIGGER_SECRET_KEY` | Trigger.dev runs and estimated spend |
+| `GITHUB_TOKEN` / `GITHUB_ORG` | Sync real GitHub repos to projects |
+| `GOOGLE_CLIENT_ID` / `SECRET` | Gmail + Calendar OAuth |
+| `GCP_PROJECT_ID` + service account JSON | GCP billing + Cloud Run health |
+| `RESEND_API_KEY` + `RESEND_FROM_EMAIL` | Team invite emails with join links |
+
+## Integrations
+
+Open **Integrations** in the sidebar (or visit `/integrations`) to connect services. Add keys to `.env.local`, then **Sync now** per provider or **Sync all configured**.
+
+| Service | What syncs |
+|---------|------------|
+| **OpenRouter** | Usage USD, limits → Stack & Costs |
+| **Trigger.dev** | Recent runs, estimated compute spend |
+| **Google** | OAuth connect → Gmail threads + Calendar events |
+| **GCP** | Cloud Run health + configured monthly spend |
+| **GitHub** | Org/user repos, auto-link to harness projects by `repoUrl` |
+| **Resend** | Sends invite emails from Team → Invite teammate |
+
+### Team invite flow
+
+1. **Team** → **Invite teammate** — pick email, role, and projects.
+2. Resend sends an email (or copy the join link in dev without Resend).
+3. Invitee opens `/join?token=…` → sign in (Supabase Google/email) or accept in demo mode.
+4. Accept creates the team member and project assignments.
+
+SQL for invites and integrations: `supabase/migrations/002_integrations_invites_auth.sql`.
 
 ## Talk to Hermes
 
